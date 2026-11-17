@@ -14,19 +14,14 @@
       "python": "D:/AppDevelopment/Python311/python.exe"
     },
     {
-      // 连真实模型调试：先把下面的 sk-xxx 换成你自己的 key
+      // 连真实模型调试：key 与 base_url 统一从项目根 .env 读取（别再写进本文件）
       "name": "agent.py 真实模型",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/agent.py",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "python": "D:/AppDevelopment/Python311/python.exe",
-      "env": {
-        "OPENAI_API_KEY": "sk-da0c3e0ee04b45ebb29ea52cd359853f",
-        "OPENAI_BASE_URL": "https://api.deepseek.com/v1",
-        "MODEL": "deepseek-v4-flash"
-      }
+      "python": "D:/AppDevelopment/Python311/python.exe"
     },
     {
       // 推荐先用这个：假模型，不需要 API Key，不花额度
@@ -51,19 +46,14 @@
       "python": "D:/AppDevelopment/Python311/python.exe"
     },
     {
-      // 连真实模型调试：先把下面的 sk-xxx 换成你自己的 key
+      // 连真实模型调试：key 与 base_url 统一从项目根 .env 读取（别再写进本文件）
       "name": "agent2.py 真实模型",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/agent2.py",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "python": "D:/AppDevelopment/Python311/python.exe",
-      "env": {
-        "OPENAI_API_KEY": "sk-da0c3e0ee04b45ebb29ea52cd359853f",
-        "OPENAI_BASE_URL": "https://api.deepseek.com/v1",
-        "MODEL": "deepseek-v4-flash"
-      }
+      "python": "D:/AppDevelopment/Python311/python.exe"
     }
   ]
 }
