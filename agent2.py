@@ -21,7 +21,7 @@ from openai import OpenAI
 from agent import BASE_URL, MODEL, SANDBOX, TOOLS as BASE_TOOLS, dispatch
 
 MAX_STEPS = 40          # 任务变长了，步数上限必须放宽——这也是上下文会爆的原因
-ARTIFACT_THRESHOLD = 2000   # 工具结果超过这么多字符就落盘，只把摘要塞回 messages
+ARTIFACT_THRESHOLD = 1200   # 工具结果超过这么多字符就落盘，只把摘要塞回 messages
 RUNS = Path(__file__).parent / "runs"
 RUN_DIR: Path = None    # 当前运行的目录，被 read_artifact / write_report 共享
 
@@ -66,31 +66,49 @@ def write_report(path: str, content: str) -> str:
 
 # ---------- 新增工具：findstr ----------
 def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 12) -> str:
-    """统计 path 目录（含子目录）下所有文件中，包含 needle 的行数。
-    show_lines=True 时额外返回匹配行，格式为“文件名:行号: 内容”，最多返回 max_lines 行。"""
+    """统计 path 目录（含子目录）或单个文件中，包含 needle 的行数。
+    show_lines=True 时额外返回匹配行，格式为“文件名:行号: 内容”，最多返回 max_lines 行。
+    path 指向单个文件时走纯 Python 扫描（子进程的 cwd 不能是文件）。"""
     from agent import _safe
     try:
         p_root = _safe(path)  # 先做沙箱校验，再交给 shell
-        all_files = sorted(
-            p.relative_to(p_root).as_posix()
-            for p in p_root.rglob("*.*") if p.is_file()
-        )
+        if not p_root.exists():
+            return (f"{path} 不存在。请先用 list_files 列出目录，"
+                    f"确认文件名拼写（沙箱根目录: sandbox/）")
+        single = p_root.is_file()
+        if single:
+            all_files = [p_root.name]
+        else:
+            all_files = sorted(
+                p.relative_to(p_root).as_posix()
+                for p in p_root.rglob("*.*") if p.is_file()
+            )
         if not all_files:
-            return f"目录 {path} 下没有找到文件"
+            return f"{path} 是空目录：没有任何文件。请确认路径，或用 list_files 查看目录内容"
 
         if show_lines:
-            matches = _findstr_lines(p_root, needle)
+            matches = (_findstr_lines_single(p_root, needle) if single
+                       else _findstr_lines(p_root, needle))
             # 工具自己守住输出预算：单行实测约 84 字符，12 行约 1100 < 1200 落盘阈值。
             # max_lines 来自模型，不可信任，超出预算一律收紧——否则输出被落盘，
             # show_lines 就失去了"替代 read_file→read_artifact 三连"的意义。
             limit = min(max(1, max_lines), 12)
             total = len(matches)
+            if total == 0:
+                scope = f"文件 {path}" if single else f"{path} 下 {len(all_files)} 个文件"
+                return f"{scope} 中未找到 {needle!r}（区分大小写）"
             detail = "\n".join(
                 f"{name}:{lineno}: {content}"
                 for name, lineno, content in matches[:limit]
             )
-            header = f"共 {total} 行匹配，返回前 {min(total, limit)} 行"
-            return header + (f"\n{detail}" if detail else "")
+            header = f"{path} 中 {needle!r} 共 {total} 行匹配，返回前 {min(total, limit)} 行"
+            if total > limit:
+                header += f"（其余 {total - limit} 行未列出，可把 path 收窄到单个文件）"
+            return f"{header}\n{detail}"
+
+        if single:
+            return (f"文件 {path} 中 {needle!r} 共 "
+                    f"{len(_findstr_lines_single(p_root, needle))} 行")
 
         # findstr/grep 不返回 0 匹配的文件；shell 不可用时回退到 Python
         counts = _findstr_subprocess(p_root, needle)
@@ -100,9 +118,27 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
         per_file = {name: counts.get(name, 0) for name in all_files}
         total = sum(per_file.values())
         detail = "\n".join(f"  {name}: {count}" for name, count in per_file.items())
-        return f"目录 {path} 下 {len(per_file)} 个文件中，{needle!r} 共出现在 {total} 行\n{detail}"
+        return (f"目录 {path} 下 {len(per_file)} 个文件中，"
+                f"{needle!r} 共出现在 {total} 行\n{detail}")
+    except PermissionError as e:
+        return (f"findstr 越权拒绝 {path}：{e}。"
+                f"只能传 sandbox/ 内的相对路径，如 batch 或 batch/log_01.log")
+    except FileNotFoundError:
+        return f"findstr 找不到路径 {path}。请先用 list_files 确认文件名"
     except Exception as e:
         return f"findstr 执行失败 {type(e).__name__}: {e}"
+
+
+def _findstr_lines_single(p: Path, needle: str) -> list[tuple[str, int, str]]:
+    """扫描单个文件，返回 [(文件名, 行号, 行内容)]。
+    刻意不走子进程：subprocess 的 cwd 传一个文件会抛 NotADirectoryError，
+    而单文件本来就很小，纯 Python 扫描行号更精确、两个平台输出一字不差。"""
+    matches = []
+    with open(p, "r", encoding="utf-8", errors="replace") as f:
+        for lineno, line in enumerate(f, 1):
+            if needle in line:
+                matches.append((p.name, lineno, line.rstrip("\r\n")))
+    return matches
 
 
 def _findstr_lines(p_root: Path, needle: str) -> list[tuple[str, int, str]]:
@@ -226,11 +262,11 @@ TOOLS = BASE_TOOLS + [
         "type": "function",
         "function": {
             "name": "findstr",
-            "description": "统计目录下所有文件中，包含指定字符串的行数；也可返回匹配行的文件名、行号和内容。",
+            "description": "统计目录下所有文件中，包含指定字符串的行数；也可返回匹配行的文件名、行号和内容。path 传目录时会一次性返回每个文件的计数，比逐文件调用省得多；只有需要核对某个具体文件时才传文件路径",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "相对路径，如 batch"},
+                    "path": {"type": "string", "description": "相对路径。可以是目录（如 batch，递归搜索其下所有文件），也可以是单个文件（如 batch/log_16.log，只看这一个文件）"},
                     "needle": {"type": "string", "description": "要查找的字符串，如 ERROR"},
                     "show_lines": {"type": "boolean", "description": "是否返回匹配行明细，默认 false"},
                     "max_lines": {"type": "integer", "description": "show_lines=true 时最多返回多少行，默认 12，超过 12 会被收紧到 12（防止输出过大被落盘）"},
