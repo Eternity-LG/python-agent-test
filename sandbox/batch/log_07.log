@@ -1,0 +1,27 @@
+2026-11-16 10:07:00 INFO  user-service starting, pid=3007
+2026-11-16 10:07:00 INFO  GET /api/user/70 200 5ms
+2026-11-16 10:07:01 INFO  handled message id=701
+2026-11-16 10:07:02 INFO  handled message id=702
+2026-11-16 10:07:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:07:04 INFO  handled message id=704
+2026-11-16 10:07:05 INFO  GET /api/user/75 200 10ms
+2026-11-16 10:07:06 INFO  handled message id=706
+2026-11-16 10:07:07 INFO  handled message id=707
+2026-11-16 10:07:08 INFO  handled message id=708
+2026-11-16 10:07:09 INFO  handled message id=709
+2026-11-16 10:07:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:07:11 INFO  handled message id=711
+2026-11-16 10:07:12 INFO  handled message id=712
+2026-11-16 10:07:13 INFO  handled message id=713
+2026-11-16 10:07:14 INFO  handled message id=714
+2026-11-16 10:07:15 INFO  GET /api/user/85 200 20ms
+2026-11-16 10:07:16 INFO  handled message id=716
+2026-11-16 10:07:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:07:18 INFO  handled message id=718
+2026-11-16 10:07:19 INFO  handled message id=719
+2026-11-16 10:07:20 INFO  GET /api/user/90 200 5ms
+2026-11-16 10:07:21 INFO  handled message id=721
+2026-11-16 10:07:22 INFO  handled message id=722
+2026-11-16 10:07:23 INFO  handled message id=723
+2026-11-16 10:07:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:07:25 INFO  GET /api/user/95 200 10ms

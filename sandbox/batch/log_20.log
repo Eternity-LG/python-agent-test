@@ -1,0 +1,27 @@
+2026-11-16 10:20:00 INFO  pay-service starting, pid=3020
+2026-11-16 10:20:00 INFO  GET /api/pay/200 200 5ms
+2026-11-16 10:20:01 INFO  handled message id=2001
+2026-11-16 10:20:02 ERROR pay request failed, code=502, trace=t20x2
+2026-11-16 10:20:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:20:04 INFO  handled message id=2004
+2026-11-16 10:20:05 INFO  GET /api/pay/205 200 10ms
+2026-11-16 10:20:06 INFO  handled message id=2006
+2026-11-16 10:20:07 INFO  handled message id=2007
+2026-11-16 10:20:08 ERROR pay request failed, code=508, trace=t20x8
+2026-11-16 10:20:09 INFO  handled message id=2009
+2026-11-16 10:20:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:20:11 INFO  handled message id=2011
+2026-11-16 10:20:12 INFO  handled message id=2012
+2026-11-16 10:20:13 INFO  handled message id=2013
+2026-11-16 10:20:14 ERROR pay request failed, code=514, trace=t20x14
+2026-11-16 10:20:15 INFO  GET /api/pay/215 200 20ms
+2026-11-16 10:20:16 INFO  handled message id=2016
+2026-11-16 10:20:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:20:18 INFO  handled message id=2018
+2026-11-16 10:20:19 INFO  handled message id=2019
+2026-11-16 10:20:20 INFO  GET /api/pay/220 200 5ms
+2026-11-16 10:20:21 INFO  handled message id=2021
+2026-11-16 10:20:22 INFO  handled message id=2022
+2026-11-16 10:20:23 INFO  handled message id=2023
+2026-11-16 10:20:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:20:25 INFO  GET /api/pay/225 200 10ms

@@ -1,0 +1,27 @@
+2026-11-16 10:08:00 INFO  pay-service starting, pid=3008
+2026-11-16 10:08:00 INFO  GET /api/pay/80 200 5ms
+2026-11-16 10:08:01 INFO  handled message id=801
+2026-11-16 10:08:02 ERROR pay request failed, code=502, trace=t8x2
+2026-11-16 10:08:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:08:04 INFO  handled message id=804
+2026-11-16 10:08:05 INFO  GET /api/pay/85 200 10ms
+2026-11-16 10:08:06 INFO  handled message id=806
+2026-11-16 10:08:07 INFO  handled message id=807
+2026-11-16 10:08:08 ERROR pay request failed, code=508, trace=t8x8
+2026-11-16 10:08:09 INFO  handled message id=809
+2026-11-16 10:08:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:08:11 INFO  handled message id=811
+2026-11-16 10:08:12 INFO  handled message id=812
+2026-11-16 10:08:13 INFO  handled message id=813
+2026-11-16 10:08:14 ERROR pay request failed, code=514, trace=t8x14
+2026-11-16 10:08:15 INFO  GET /api/pay/95 200 20ms
+2026-11-16 10:08:16 INFO  handled message id=816
+2026-11-16 10:08:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:08:18 INFO  handled message id=818
+2026-11-16 10:08:19 INFO  handled message id=819
+2026-11-16 10:08:20 INFO  GET /api/pay/100 200 5ms
+2026-11-16 10:08:21 INFO  handled message id=821
+2026-11-16 10:08:22 INFO  handled message id=822
+2026-11-16 10:08:23 INFO  handled message id=823
+2026-11-16 10:08:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:08:25 INFO  GET /api/pay/105 200 10ms

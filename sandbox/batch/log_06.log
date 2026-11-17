@@ -1,0 +1,27 @@
+2026-11-16 10:06:00 INFO  order-service starting, pid=3006
+2026-11-16 10:06:00 INFO  GET /api/order/60 200 5ms
+2026-11-16 10:06:01 INFO  handled message id=601
+2026-11-16 10:06:02 ERROR order request failed, code=502, trace=t6x2
+2026-11-16 10:06:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:06:04 INFO  handled message id=604
+2026-11-16 10:06:05 INFO  GET /api/order/65 200 10ms
+2026-11-16 10:06:06 INFO  handled message id=606
+2026-11-16 10:06:07 INFO  handled message id=607
+2026-11-16 10:06:08 INFO  handled message id=608
+2026-11-16 10:06:09 INFO  handled message id=609
+2026-11-16 10:06:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:06:11 INFO  handled message id=611
+2026-11-16 10:06:12 INFO  handled message id=612
+2026-11-16 10:06:13 INFO  handled message id=613
+2026-11-16 10:06:14 INFO  handled message id=614
+2026-11-16 10:06:15 INFO  GET /api/order/75 200 20ms
+2026-11-16 10:06:16 INFO  handled message id=616
+2026-11-16 10:06:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:06:18 INFO  handled message id=618
+2026-11-16 10:06:19 INFO  handled message id=619
+2026-11-16 10:06:20 INFO  GET /api/order/80 200 5ms
+2026-11-16 10:06:21 INFO  handled message id=621
+2026-11-16 10:06:22 INFO  handled message id=622
+2026-11-16 10:06:23 INFO  handled message id=623
+2026-11-16 10:06:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:06:25 INFO  GET /api/order/85 200 10ms

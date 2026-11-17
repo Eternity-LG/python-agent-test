@@ -1,0 +1,27 @@
+2026-11-16 10:18:00 INFO  order-service starting, pid=3018
+2026-11-16 10:18:00 INFO  GET /api/order/180 200 5ms
+2026-11-16 10:18:01 INFO  handled message id=1801
+2026-11-16 10:18:02 ERROR order request failed, code=502, trace=t18x2
+2026-11-16 10:18:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:18:04 INFO  handled message id=1804
+2026-11-16 10:18:05 INFO  GET /api/order/185 200 10ms
+2026-11-16 10:18:06 INFO  handled message id=1806
+2026-11-16 10:18:07 INFO  handled message id=1807
+2026-11-16 10:18:08 ERROR order request failed, code=508, trace=t18x8
+2026-11-16 10:18:09 INFO  handled message id=1809
+2026-11-16 10:18:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:18:11 INFO  handled message id=1811
+2026-11-16 10:18:12 INFO  handled message id=1812
+2026-11-16 10:18:13 INFO  handled message id=1813
+2026-11-16 10:18:14 INFO  handled message id=1814
+2026-11-16 10:18:15 INFO  GET /api/order/195 200 20ms
+2026-11-16 10:18:16 INFO  handled message id=1816
+2026-11-16 10:18:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:18:18 INFO  handled message id=1818
+2026-11-16 10:18:19 INFO  handled message id=1819
+2026-11-16 10:18:20 INFO  GET /api/order/200 200 5ms
+2026-11-16 10:18:21 INFO  handled message id=1821
+2026-11-16 10:18:22 INFO  handled message id=1822
+2026-11-16 10:18:23 INFO  handled message id=1823
+2026-11-16 10:18:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:18:25 INFO  GET /api/order/205 200 10ms

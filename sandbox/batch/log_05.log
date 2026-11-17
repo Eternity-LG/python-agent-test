@@ -1,0 +1,27 @@
+2026-11-16 10:05:00 INFO  search-service starting, pid=3005
+2026-11-16 10:05:00 INFO  GET /api/search/50 200 5ms
+2026-11-16 10:05:01 INFO  handled message id=501
+2026-11-16 10:05:02 ERROR search request failed, code=502, trace=t5x2
+2026-11-16 10:05:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:05:04 INFO  handled message id=504
+2026-11-16 10:05:05 INFO  GET /api/search/55 200 10ms
+2026-11-16 10:05:06 INFO  handled message id=506
+2026-11-16 10:05:07 INFO  handled message id=507
+2026-11-16 10:05:08 ERROR search request failed, code=508, trace=t5x8
+2026-11-16 10:05:09 INFO  handled message id=509
+2026-11-16 10:05:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:05:11 INFO  handled message id=511
+2026-11-16 10:05:12 INFO  handled message id=512
+2026-11-16 10:05:13 INFO  handled message id=513
+2026-11-16 10:05:14 INFO  handled message id=514
+2026-11-16 10:05:15 INFO  GET /api/search/65 200 20ms
+2026-11-16 10:05:16 INFO  handled message id=516
+2026-11-16 10:05:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:05:18 INFO  handled message id=518
+2026-11-16 10:05:19 INFO  handled message id=519
+2026-11-16 10:05:20 INFO  GET /api/search/70 200 5ms
+2026-11-16 10:05:21 INFO  handled message id=521
+2026-11-16 10:05:22 INFO  handled message id=522
+2026-11-16 10:05:23 INFO  handled message id=523
+2026-11-16 10:05:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:05:25 INFO  GET /api/search/75 200 10ms

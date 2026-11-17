@@ -1,0 +1,27 @@
+2026-11-16 10:02:00 INFO  pay-service starting, pid=3002
+2026-11-16 10:02:00 INFO  GET /api/pay/20 200 5ms
+2026-11-16 10:02:01 INFO  handled message id=201
+2026-11-16 10:02:02 INFO  handled message id=202
+2026-11-16 10:02:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:02:04 INFO  handled message id=204
+2026-11-16 10:02:05 INFO  GET /api/pay/25 200 10ms
+2026-11-16 10:02:06 INFO  handled message id=206
+2026-11-16 10:02:07 INFO  handled message id=207
+2026-11-16 10:02:08 INFO  handled message id=208
+2026-11-16 10:02:09 INFO  handled message id=209
+2026-11-16 10:02:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:02:11 INFO  handled message id=211
+2026-11-16 10:02:12 INFO  handled message id=212
+2026-11-16 10:02:13 INFO  handled message id=213
+2026-11-16 10:02:14 INFO  handled message id=214
+2026-11-16 10:02:15 INFO  GET /api/pay/35 200 20ms
+2026-11-16 10:02:16 INFO  handled message id=216
+2026-11-16 10:02:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:02:18 INFO  handled message id=218
+2026-11-16 10:02:19 INFO  handled message id=219
+2026-11-16 10:02:20 INFO  GET /api/pay/40 200 5ms
+2026-11-16 10:02:21 INFO  handled message id=221
+2026-11-16 10:02:22 INFO  handled message id=222
+2026-11-16 10:02:23 INFO  handled message id=223
+2026-11-16 10:02:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:02:25 INFO  GET /api/pay/45 200 10ms

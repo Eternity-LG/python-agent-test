@@ -1,0 +1,7 @@
+2026-11-16 09:00:10 INFO  worker-1 started
+2026-11-16 09:01:00 INFO  consumed 128 messages from queue=order.created
+2026-11-16 09:02:00 WARN  consumer lag 1200ms
+2026-11-16 09:03:00 INFO  consumed 64 messages from queue=order.paid
+2026-11-16 09:04:00 INFO  consumed 91 messages from queue=order.created
+2026-11-16 09:05:00 INFO  heartbeat ok
+2026-11-16 09:06:00 INFO  consumer lag back to 80ms

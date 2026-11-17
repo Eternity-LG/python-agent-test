@@ -1,0 +1,27 @@
+2026-11-16 10:17:00 INFO  search-service starting, pid=3017
+2026-11-16 10:17:00 INFO  GET /api/search/170 200 5ms
+2026-11-16 10:17:01 INFO  handled message id=1701
+2026-11-16 10:17:02 INFO  handled message id=1702
+2026-11-16 10:17:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:17:04 INFO  handled message id=1704
+2026-11-16 10:17:05 INFO  GET /api/search/175 200 10ms
+2026-11-16 10:17:06 INFO  handled message id=1706
+2026-11-16 10:17:07 INFO  handled message id=1707
+2026-11-16 10:17:08 INFO  handled message id=1708
+2026-11-16 10:17:09 INFO  handled message id=1709
+2026-11-16 10:17:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:17:11 INFO  handled message id=1711
+2026-11-16 10:17:12 INFO  handled message id=1712
+2026-11-16 10:17:13 INFO  handled message id=1713
+2026-11-16 10:17:14 INFO  handled message id=1714
+2026-11-16 10:17:15 INFO  GET /api/search/185 200 20ms
+2026-11-16 10:17:16 INFO  handled message id=1716
+2026-11-16 10:17:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:17:18 INFO  handled message id=1718
+2026-11-16 10:17:19 INFO  handled message id=1719
+2026-11-16 10:17:20 INFO  GET /api/search/190 200 5ms
+2026-11-16 10:17:21 INFO  handled message id=1721
+2026-11-16 10:17:22 INFO  handled message id=1722
+2026-11-16 10:17:23 INFO  handled message id=1723
+2026-11-16 10:17:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:17:25 INFO  GET /api/search/195 200 10ms

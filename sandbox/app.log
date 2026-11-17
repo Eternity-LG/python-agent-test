@@ -1,0 +1,15 @@
+2026-11-16 09:00:01 INFO  app starting, pid=3821
+2026-11-16 09:00:02 INFO  loading config from /etc/app/conf.yml
+2026-11-16 09:00:02 WARN  cache pool size=8 is below recommended 32
+2026-11-16 09:00:03 INFO  http server listening on :8080
+2026-11-16 09:01:12 INFO  POST /api/order 200 18ms
+2026-11-16 09:01:13 ERROR db timeout after 3000ms, sql=select * from t_order where id=?
+2026-11-16 09:01:13 INFO  POST /api/order 500 3120ms
+2026-11-16 09:02:44 INFO  POST /api/order 200 22ms
+2026-11-16 09:03:01 WARN  slow query 1200ms, sql=select count(*) from t_order
+2026-11-16 09:04:19 ERROR java.lang.NullPointerException: user profile is null
+	at com.example.order.OrderService.build(OrderService.java:88)
+2026-11-16 09:05:30 INFO  POST /api/order 200 19ms
+2026-11-16 09:06:02 INFO  healthcheck ok
+2026-11-16 09:07:55 ERROR disk usage 91%, path=/data
+2026-11-16 09:08:00 INFO  gc young 24ms

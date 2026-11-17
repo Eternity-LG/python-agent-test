@@ -1,0 +1,27 @@
+2026-11-16 10:15:00 INFO  stock-service starting, pid=3015
+2026-11-16 10:15:00 INFO  GET /api/stock/150 200 5ms
+2026-11-16 10:15:01 INFO  handled message id=1501
+2026-11-16 10:15:02 ERROR stock request failed, code=502, trace=t15x2
+2026-11-16 10:15:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:15:04 INFO  handled message id=1504
+2026-11-16 10:15:05 INFO  GET /api/stock/155 200 10ms
+2026-11-16 10:15:06 INFO  handled message id=1506
+2026-11-16 10:15:07 INFO  handled message id=1507
+2026-11-16 10:15:08 INFO  handled message id=1508
+2026-11-16 10:15:09 INFO  handled message id=1509
+2026-11-16 10:15:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:15:11 INFO  handled message id=1511
+2026-11-16 10:15:12 INFO  handled message id=1512
+2026-11-16 10:15:13 INFO  handled message id=1513
+2026-11-16 10:15:14 INFO  handled message id=1514
+2026-11-16 10:15:15 INFO  GET /api/stock/165 200 20ms
+2026-11-16 10:15:16 INFO  handled message id=1516
+2026-11-16 10:15:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:15:18 INFO  handled message id=1518
+2026-11-16 10:15:19 INFO  handled message id=1519
+2026-11-16 10:15:20 INFO  GET /api/stock/170 200 5ms
+2026-11-16 10:15:21 INFO  handled message id=1521
+2026-11-16 10:15:22 INFO  handled message id=1522
+2026-11-16 10:15:23 INFO  handled message id=1523
+2026-11-16 10:15:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:15:25 INFO  GET /api/stock/175 200 10ms

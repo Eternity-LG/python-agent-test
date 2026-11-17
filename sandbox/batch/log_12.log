@@ -1,0 +1,27 @@
+2026-11-16 10:12:00 INFO  order-service starting, pid=3012
+2026-11-16 10:12:00 INFO  GET /api/order/120 200 5ms
+2026-11-16 10:12:01 INFO  handled message id=1201
+2026-11-16 10:12:02 INFO  handled message id=1202
+2026-11-16 10:12:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:12:04 INFO  handled message id=1204
+2026-11-16 10:12:05 INFO  GET /api/order/125 200 10ms
+2026-11-16 10:12:06 INFO  handled message id=1206
+2026-11-16 10:12:07 INFO  handled message id=1207
+2026-11-16 10:12:08 INFO  handled message id=1208
+2026-11-16 10:12:09 INFO  handled message id=1209
+2026-11-16 10:12:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:12:11 INFO  handled message id=1211
+2026-11-16 10:12:12 INFO  handled message id=1212
+2026-11-16 10:12:13 INFO  handled message id=1213
+2026-11-16 10:12:14 INFO  handled message id=1214
+2026-11-16 10:12:15 INFO  GET /api/order/135 200 20ms
+2026-11-16 10:12:16 INFO  handled message id=1216
+2026-11-16 10:12:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:12:18 INFO  handled message id=1218
+2026-11-16 10:12:19 INFO  handled message id=1219
+2026-11-16 10:12:20 INFO  GET /api/order/140 200 5ms
+2026-11-16 10:12:21 INFO  handled message id=1221
+2026-11-16 10:12:22 INFO  handled message id=1222
+2026-11-16 10:12:23 INFO  handled message id=1223
+2026-11-16 10:12:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:12:25 INFO  GET /api/order/145 200 10ms

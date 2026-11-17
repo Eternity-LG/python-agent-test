@@ -1,0 +1,9 @@
+2026-11-16 09:00:05 INFO  api gateway up, routes=42
+2026-11-16 09:01:40 INFO  GET /api/user/1001 200 7ms
+2026-11-16 09:02:11 WARN  rate limit hit for ip 10.2.3.4
+2026-11-16 09:02:12 INFO  GET /api/user/1001 200 6ms
+2026-11-16 09:03:33 ERROR upstream 502 from order-service, retry=1
+2026-11-16 09:03:34 INFO  GET /api/order/88 200 41ms
+2026-11-16 09:04:50 INFO  GET /api/user/1002 200 8ms
+2026-11-16 09:05:12 ERROR jwt verify failed: expired token, uid=1003
+2026-11-16 09:06:00 INFO  healthcheck ok

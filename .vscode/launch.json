@@ -1,0 +1,69 @@
+{
+  // 按 F5 打开调试面板，选择下面任一配置运行 agent.py
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // 推荐先用这个：假模型，不需要 API Key，不花额度
+      "name": "agent.py 自检模式",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/agent.py",
+      "args": ["--self-test"],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "python": "D:/AppDevelopment/Python311/python.exe"
+    },
+    {
+      // 连真实模型调试：先把下面的 sk-xxx 换成你自己的 key
+      "name": "agent.py 真实模型",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/agent.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "python": "D:/AppDevelopment/Python311/python.exe",
+      "env": {
+        "OPENAI_API_KEY": "sk-da0c3e0ee04b45ebb29ea52cd359853f",
+        "OPENAI_BASE_URL": "https://api.deepseek.com/v1",
+        "MODEL": "deepseek-v4-flash"
+      }
+    },
+    {
+      // 推荐先用这个：假模型，不需要 API Key，不花额度
+      "name": "agent2.py 自检模式",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/agent2.py",
+      "args": ["--self-test"],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "python": "D:/AppDevelopment/Python311/python.exe"
+    },
+    {
+      // 推荐先用这个：假模型，不需要 API Key，不花额度
+      "name": "agent2.py 重试模式",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/agent2.py",
+      "args": ["--resume", "1116-200511-0a94", "--self-test"],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "python": "D:/AppDevelopment/Python311/python.exe"
+    },
+    {
+      // 连真实模型调试：先把下面的 sk-xxx 换成你自己的 key
+      "name": "agent2.py 真实模型",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/agent2.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "python": "D:/AppDevelopment/Python311/python.exe",
+      "env": {
+        "OPENAI_API_KEY": "sk-da0c3e0ee04b45ebb29ea52cd359853f",
+        "OPENAI_BASE_URL": "https://api.deepseek.com/v1",
+        "MODEL": "deepseek-v4-flash"
+      }
+    }
+  ]
+}

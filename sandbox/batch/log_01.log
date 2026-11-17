@@ -1,0 +1,27 @@
+2026-11-16 10:01:00 INFO  user-service starting, pid=3001
+2026-11-16 10:01:00 INFO  GET /api/user/10 200 5ms
+2026-11-16 10:01:01 INFO  handled message id=101
+2026-11-16 10:01:02 ERROR user request failed, code=502, trace=t1x2
+2026-11-16 10:01:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:01:04 INFO  handled message id=104
+2026-11-16 10:01:05 INFO  GET /api/user/15 200 10ms
+2026-11-16 10:01:06 INFO  handled message id=106
+2026-11-16 10:01:07 INFO  handled message id=107
+2026-11-16 10:01:08 ERROR user request failed, code=508, trace=t1x8
+2026-11-16 10:01:09 INFO  handled message id=109
+2026-11-16 10:01:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:01:11 INFO  handled message id=111
+2026-11-16 10:01:12 INFO  handled message id=112
+2026-11-16 10:01:13 INFO  handled message id=113
+2026-11-16 10:01:14 ERROR user request failed, code=514, trace=t1x14
+2026-11-16 10:01:15 INFO  GET /api/user/25 200 20ms
+2026-11-16 10:01:16 INFO  handled message id=116
+2026-11-16 10:01:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:01:18 INFO  handled message id=118
+2026-11-16 10:01:19 INFO  handled message id=119
+2026-11-16 10:01:20 INFO  GET /api/user/30 200 5ms
+2026-11-16 10:01:21 INFO  handled message id=121
+2026-11-16 10:01:22 INFO  handled message id=122
+2026-11-16 10:01:23 INFO  handled message id=123
+2026-11-16 10:01:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:01:25 INFO  GET /api/user/35 200 10ms

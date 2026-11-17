@@ -1,0 +1,27 @@
+2026-11-16 10:04:00 INFO  notify-service starting, pid=3004
+2026-11-16 10:04:00 INFO  GET /api/notify/40 200 5ms
+2026-11-16 10:04:01 INFO  handled message id=401
+2026-11-16 10:04:02 ERROR notify request failed, code=502, trace=t4x2
+2026-11-16 10:04:03 WARN  retry error count=3 handled by backoff
+2026-11-16 10:04:04 INFO  handled message id=404
+2026-11-16 10:04:05 INFO  GET /api/notify/45 200 10ms
+2026-11-16 10:04:06 INFO  handled message id=406
+2026-11-16 10:04:07 INFO  handled message id=407
+2026-11-16 10:04:08 ERROR notify request failed, code=508, trace=t4x8
+2026-11-16 10:04:09 INFO  handled message id=409
+2026-11-16 10:04:10 WARN  retry error count=2 handled by backoff
+2026-11-16 10:04:11 INFO  handled message id=411
+2026-11-16 10:04:12 INFO  handled message id=412
+2026-11-16 10:04:13 INFO  handled message id=413
+2026-11-16 10:04:14 ERROR notify request failed, code=514, trace=t4x14
+2026-11-16 10:04:15 INFO  GET /api/notify/55 200 20ms
+2026-11-16 10:04:16 INFO  handled message id=416
+2026-11-16 10:04:17 WARN  retry error count=1 handled by backoff
+2026-11-16 10:04:18 INFO  handled message id=418
+2026-11-16 10:04:19 INFO  handled message id=419
+2026-11-16 10:04:20 ERROR notify request failed, code=520, trace=t4x20
+2026-11-16 10:04:21 INFO  handled message id=421
+2026-11-16 10:04:22 INFO  handled message id=422
+2026-11-16 10:04:23 INFO  handled message id=423
+2026-11-16 10:04:24 WARN  retry error count=0 handled by backoff
+2026-11-16 10:04:25 INFO  GET /api/notify/65 200 10ms
