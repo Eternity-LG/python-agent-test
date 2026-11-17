@@ -110,6 +110,41 @@ def _zero_evidence(p_root: Path, needle: str, single: bool) -> str:
             f"如 {rel}:{no} {text[:70]!r}。若要忽略大小写请改传 needle={low!r}")
 
 
+_ZERO_SCAN_MAX = 32     # 零命中文件逐个数行的上限，防止大目录退化成全量重扫
+
+
+def _zero_files_note(p_root: Path, zero_names: list[str], needle: str) -> str:
+    """目录模式下"部分文件 0 命中"时，给这些 0 也补上分母。
+
+    run7 的教训：全目录总数 37 不为 0，于是 log_02.log 那个单独的 0 拿不到任何凭据，
+    模型只能改用 read_file 读 1402 字符全文去确认它是真的没有。0 的可信度不该取决于
+    它是不是恰好等于全目录总数——任何一个 0 都要能被追问"你扫完了吗"。
+    """
+    if len(zero_names) > _ZERO_SCAN_MAX:
+        head = "、".join(zero_names[:3])
+        return (f"另 {len(zero_names)} 个文件零命中（{head} 等），文件过多未逐个核对行数；"
+                f"可对可疑文件传 show_lines=true 单独确认")
+
+    low = needle.lower()
+    n_lines, hit = 0, None
+    for name in zero_names:
+        try:
+            with open(p_root / name, "r", encoding="utf-8", errors="replace") as fh:
+                for i, line in enumerate(fh, 1):
+                    n_lines += 1
+                    if hit is None and needle not in line and low in line.lower():
+                        hit = (name, i, line.rstrip("\r\n"))
+        except OSError:
+            continue
+    note = (f"另 {len(zero_names)} 个文件零命中（{'、'.join(zero_names)}），"
+            f"共 {n_lines} 行已完整扫描")
+    if hit:
+        name, no, text = hit
+        note += (f"；其中 {name}:{no} 是大小写不同的写法 {text[:60]!r}，"
+                 f"要核对请传 needle={low!r}")
+    return note
+
+
 def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 12) -> str:
     """统计 path 目录（含子目录）或单个文件中，包含 needle 的行数。
     show_lines=True 时额外返回匹配行，格式为“文件名:行号: 内容”，最多返回 max_lines 行。
@@ -171,6 +206,10 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
                 f"{needle!r} 共出现在 {total} 行\n{detail}")
         if total == 0:
             body += "\n" + _zero_evidence(p_root, needle, False)
+        else:
+            zero_names = [name for name, count in per_file.items() if count == 0]
+            if zero_names:
+                body += "\n" + _zero_files_note(p_root, zero_names, needle)
         return body
     except PermissionError as e:
         return (f"findstr 越权拒绝 {path}：{e}。"
