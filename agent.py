@@ -20,6 +20,10 @@ from typing import Any
 
 from openai import OpenAI
 
+from envfile import load_env
+
+load_env()              # 必须在下面几行之前：MODEL / BASE_URL 是导入即定值的常量
+
 BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.deepseek.com/v1")
 MODEL = os.getenv("MODEL", "deepseek-v4-flash")
 MAX_STEPS = 12          # 硬性终止条件。没有它，agent 能一直循环到烧完额度

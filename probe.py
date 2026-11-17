@@ -13,26 +13,9 @@
 import json
 import os
 import sys
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-
-
-def load_env(path: Path) -> None:
-    """极简 .env 解析：KEY=VALUE + # 注释，够用就不引 python-dotenv。"""
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        os.environ.setdefault(k.strip(), v.strip().strip("'\""))
-
-
-# 必须在 import agent 之前读：MODEL / BASE_URL 是在模块导入时求值的常量
-load_env(ROOT / ".env")
-
+# 注意导入顺序：agent.py 在模块顶层调用 load_env()，所以 .env 在这一行就被补进
+# os.environ 了，MODEL / BASE_URL 也是那时定值。probe 自己不用再读一次 .env。
 from openai import OpenAI                      # noqa: E402
 
 from agent2 import MODEL, BASE_URL, TOOLS      # noqa: E402
@@ -105,6 +88,7 @@ def main() -> int:
         print(f"     content={(msg.content or '')[:200]!r}")
 
     # ---- 3. agent2 靠 model_dump 拼历史，字段缺失会 400 ----
+    d = {}
     try:
         d = msg.model_dump(exclude_none=True)
         print(f"model_dump    : ok，{len(d)} 字段 {sorted(d)}")
@@ -114,6 +98,26 @@ def main() -> int:
     except Exception as e:
         ok = False
         print(f"model_dump    : !! {type(e).__name__}: {e}")
+
+    # ---- 3.5 思考模型：reasoning_content 会不会被原样回传弄成 400 ----
+    # 这是只有"换模型"才会暴露的坑：agent2 直接 append msg.model_dump()，
+    # 思考内容进了历史，第二轮连同 tool 结果一起发回去。有的 provider 直接拒。
+    if d.get("reasoning_content") and msg.tool_calls:
+        probe_msgs = [
+            {"role": "user", "content": "用 findstr 统计 sandbox/batch 目录里 error 出现多少行。"},
+            d,
+            {"role": "tool", "tool_call_id": msg.tool_calls[0].id, "content": "共 37 行"},
+        ]
+        print(f"reasoning     : 是思考模型，{len(d['reasoning_content'])} 字符")
+        try:
+            client.chat.completions.create(model=MODEL, messages=probe_msgs,
+                                           tools=TOOLS, temperature=0)
+            print("  第 2 轮回传 ok。副作用：思考文本计入 ctx_chars，"
+                  "跨模型比上下文时会虚高，基线表里要注明")
+        except Exception as e:
+            ok = False
+            print(f"  !! 第 2 轮被拒 {type(e).__name__}: {str(e)[:120]}")
+            print("     → 在 append 前 pop：d.pop('reasoning_content', None)")
 
     # ---- 4. usage：agent2 的 tokens 全靠它 ----
     u = resp.usage
