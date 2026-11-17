@@ -23,9 +23,18 @@ from agent import BASE_URL, MODEL, SANDBOX, TOOLS as BASE_TOOLS, dispatch
 
 MAX_STEPS = 40          # 任务变长了，步数上限必须放宽——这也是上下文会爆的原因
 ARTIFACT_THRESHOLD = 1200   # 工具结果超过这么多字符就落盘，只把摘要塞回 messages
-RUNS = Path(__file__).parent / "runs"
-RUN_DIR: Path = None    # 当前运行的目录，被 read_artifact / write_report 共享
 
+_runs_env = os.getenv("RUNS")           # .env 里的 RUNS 优先，否则用项目根/runs
+if _runs_env:
+    _p = Path(_runs_env).expanduser()
+    # 相对路径按项目根解析，不跟着 cwd 跑——否则从别的目录启动会把 runs 建到那里
+    RUNS = _p if _p.is_absolute() else (Path(__file__).parent / _p).resolve()
+else:
+    RUNS = Path(__file__).parent / "runs"
+RUN_DIR: Path = None    # 当前运行的目录，被 read_artifact / write_report 共享
+from envfile import load_env
+
+load_env()      # 幂等兜底：真正定值的是上面 import agent 时 agent.py 顶部那次
 SYSTEM = (
     "你是数据分析助手。规则：\n"
     "1. 需要文件信息时先调用工具，不要猜测文件名。\n"
@@ -503,4 +512,11 @@ if __name__ == "__main__":
         key = os.getenv("OPENAI_API_KEY")
         if not key:
             sys.exit("请先设置 OPENAI_API_KEY（或改用 --self-test）")
+        # 启动诊断：换模型时最容易骗人的就是"以为改了 .env，其实读的是别处的变量"
+        from envfile import _DEFAULT as ENV_FILE, source_of
+        print(f"[config] model    = {MODEL}        ← {source_of('MODEL')}")
+        print(f"[config] base_url = {BASE_URL}")
+        print(f"[config] api_key  = {key[:6]}…{key[-4:]}（{len(key)} 位）← {source_of('OPENAI_API_KEY')}")
+        print(f"[config] .env     = {ENV_FILE}{'' if ENV_FILE.exists() else '  [不存在]'}")
+        print(f"[config] runs     = {RUNS}")
         print(run(QUESTION, OpenAI(api_key=key, base_url=BASE_URL), resume=resume_id))
