@@ -398,7 +398,7 @@ def run(question: str, client, resume: str | None = None) -> str:
               f"上下文 {ctx_chars(state['messages'])} 字符")
         state.setdefault("seen", {})
         state.setdefault("no_progress", 0)
-        log(event="resume", step=state["step"])
+        log(event="resume", step=state["step"], model=MODEL, base_url=BASE_URL)
     else:
         RUN_DIR = RUNS / (time.strftime("%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4])
         (RUN_DIR / "artifacts").mkdir(parents=True)
@@ -409,7 +409,7 @@ def run(question: str, client, resume: str | None = None) -> str:
             ],
             "step": 0, "calls": {}, "tokens": 0, "seen": {}, "no_progress": 0,
         }
-        log(event="start", question=question)
+        log(event="start", question=question, model=MODEL, base_url=BASE_URL)
         print(f"[run] {RUN_DIR.name}")
 
     messages = state["messages"]

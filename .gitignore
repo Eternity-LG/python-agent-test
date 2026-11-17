@@ -9,6 +9,11 @@ venv/
 # 不入库，避免 diff 被淹没；需要留证的基线 run 另存到 eval/baselines/
 runs/
 
+# 凭证：API Key 只放本地 .env，绝不入库
+.env
+.env.*
+!.env.example
+
 # 本地工具缓存
 .gradio/
 .ipynb_checkpoints/
