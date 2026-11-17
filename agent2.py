@@ -14,6 +14,7 @@ import os
 import sys
 import time
 import uuid
+import hashlib, re
 from pathlib import Path
 
 from openai import OpenAI
@@ -41,6 +42,15 @@ QUESTION = (
 )
 
 
+# ---------- 新增工具，计算内容重复率 ----------
+# 每次都会变、但不携带信息的片段：落盘名、分页头、时间戳
+_VOLATILE = re.compile(r"tool_\d+|第 \d+–\d+ 行|\d{4}-\d\d-\d\d \d\d:\d\d:\d\d")
+
+#  指纹计算
+def fingerprint(result: str) -> str:
+    s = _VOLATILE.sub("#", str(result))[:300]
+    return f"{len(s) // 50}|{hashlib.md5(s.encode('utf-8')).hexdigest()[:8]}"
+
 # ---------- 新增工具：读外置结果 / 写报告 ----------
 def _artifact(name: str) -> Path:
     p = (RUN_DIR / "artifacts" / f"{name}.txt").resolve()
@@ -65,6 +75,32 @@ def write_report(path: str, content: str) -> str:
     return f"已写入 {p.name}，{len(content)} 字符"
 
 # ---------- 新增工具：findstr ----------
+def _zero_evidence(p_root: Path, needle: str, single: bool) -> str:
+    """零值自证：回答"这个 0 是真的没有，还是没读到"。
+    只在 total == 0 时调用——正常有命中的路径不付这个成本。
+    给三样东西：分母（扫了多少文件/行）、最可能的误判原因（大小写变体）、一条可核对的样例。"""
+    files = [p_root] if single else sorted(p for p in p_root.rglob("*.*") if p.is_file())
+    n_lines, variants = 0, []
+    low = needle.lower()
+    for f in files:
+        rel = f.name if single else f.relative_to(p_root).as_posix()
+        try:
+            with open(f, "r", encoding="utf-8", errors="replace") as fh:
+                for i, line in enumerate(fh, 1):
+                    n_lines += 1
+                    # 含 needle 但大小写不同：这才是模型看到 0 时第一个怀疑的对象
+                    if needle not in line and low in line.lower():
+                        variants.append((rel, i, line.rstrip("\r\n")))
+        except OSError:
+            continue
+    head = f"已扫描 {len(files)} 个文件、{n_lines} 行（读完整了，不是没找到文件）"
+    if not variants:
+        return f"{head}；区分大小写地搜 {needle!r} 确实一处都没有"
+    rel, no, text = variants[0]
+    return (f"{head}；另有 {len(variants)} 行是大小写不同的写法，"
+            f"如 {rel}:{no} {text[:70]!r}。若要忽略大小写请改传 needle={low!r}")
+
+
 def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 12) -> str:
     """统计 path 目录（含子目录）或单个文件中，包含 needle 的行数。
     show_lines=True 时额外返回匹配行，格式为“文件名:行号: 内容”，最多返回 max_lines 行。
@@ -96,7 +132,8 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
             total = len(matches)
             if total == 0:
                 scope = f"文件 {path}" if single else f"{path} 下 {len(all_files)} 个文件"
-                return f"{scope} 中未找到 {needle!r}（区分大小写）"
+                return (f"{scope} 中未找到 {needle!r}（区分大小写）\n"
+                        f"{_zero_evidence(p_root, needle, single)}")
             detail = "\n".join(
                 f"{name}:{lineno}: {content}"
                 for name, lineno, content in matches[:limit]
@@ -107,8 +144,11 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
             return f"{header}\n{detail}"
 
         if single:
-            return (f"文件 {path} 中 {needle!r} 共 "
-                    f"{len(_findstr_lines_single(p_root, needle))} 行")
+            n = len(_findstr_lines_single(p_root, needle))
+            if n == 0:
+                return (f"文件 {path} 中 {needle!r} 共 0 行\n"
+                        f"{_zero_evidence(p_root, needle, True)}")
+            return f"文件 {path} 中 {needle!r} 共 {n} 行"
 
         # findstr/grep 不返回 0 匹配的文件；shell 不可用时回退到 Python
         counts = _findstr_subprocess(p_root, needle)
@@ -118,8 +158,11 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
         per_file = {name: counts.get(name, 0) for name in all_files}
         total = sum(per_file.values())
         detail = "\n".join(f"  {name}: {count}" for name, count in per_file.items())
-        return (f"目录 {path} 下 {len(per_file)} 个文件中，"
+        body = (f"目录 {path} 下 {len(per_file)} 个文件中，"
                 f"{needle!r} 共出现在 {total} 行\n{detail}")
+        if total == 0:
+            body += "\n" + _zero_evidence(p_root, needle, False)
+        return body
     except PermissionError as e:
         return (f"findstr 越权拒绝 {path}：{e}。"
                 f"只能传 sandbox/ 内的相对路径，如 batch 或 batch/log_01.log")
@@ -353,6 +396,8 @@ def run(question: str, client, resume: str | None = None) -> str:
         state = json.loads((RUN_DIR / "state.json").read_text(encoding="utf-8"))
         print(f"[resume] 从第 {state['step']} 步继续，已有 {len(state['messages'])} 条消息，"
               f"上下文 {ctx_chars(state['messages'])} 字符")
+        state.setdefault("seen", {})
+        state.setdefault("no_progress", 0)
         log(event="resume", step=state["step"])
     else:
         RUN_DIR = RUNS / (time.strftime("%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4])
@@ -362,7 +407,7 @@ def run(question: str, client, resume: str | None = None) -> str:
                 {"role": "system", "content": SYSTEM},
                 {"role": "user", "content": question},
             ],
-            "step": 0, "calls": {}, "tokens": 0,
+            "step": 0, "calls": {}, "tokens": 0, "seen": {}, "no_progress": 0,
         }
         log(event="start", question=question)
         print(f"[run] {RUN_DIR.name}")
@@ -386,15 +431,15 @@ def run(question: str, client, resume: str | None = None) -> str:
             log(event="finish", step=state["step"], chars=ctx_chars(messages), tokens=state["tokens"])
             save_state(state)
             return msg.content or ""
-
+        step_new = 0                       # 本步新信息计数，必须在 while 内、for 外
         for call in msg.tool_calls:
             args = json.loads(call.function.arguments or "{}")
             # key 必须是字符串：state 要落成 JSON，tuple 会被 json.dumps 拒绝
             key = call.function.name + "|" + json.dumps(args, sort_keys=True, ensure_ascii=False)
             state["calls"][key] = state["calls"].get(key, 0) + 1
 
-            if state["calls"][key] >= 3:
-                result = "同参数已调用 3 次，结果不会变。请换参数或依据已有信息继续。"
+            if state["calls"][key] >= 4:
+                result = "同参数已调用 4 次，结果不会变。请换参数或依据已有信息继续。"
                 print(f"[step {state['step']}] 拦截重复调用 {call.function.name}")
             else:
                 try:
@@ -409,13 +454,23 @@ def run(question: str, client, resume: str | None = None) -> str:
                 except Exception as e:
                     result = f"工具执行失败 {type(e).__name__}: {e}"
                     print(f"[step {state['step']}] {call.function.name} 报错: {e}")
-
+            fp = fingerprint(result)                   # ← 注意：指纹打在这里，即模型最终看到的内容
+            if fp not in state["seen"]:
+                state["seen"][fp] = state["step"]
+                step_new += 1
             messages.append({
                 "role": "tool",
                 "tool_call_id": call.id,
                 "content": str(result),
             })
-
+        # 整步所有调用都没带来新信息才算"无进展"
+        state["no_progress"] = state["no_progress"] + 1 if step_new == 0 else 0
+        if state["no_progress"] >= 2:
+            messages.append({"role": "user", "content":
+                f"你已经连续 {state['no_progress']} 步没有获得任何新信息，当前做法在原地打转。"
+                "先复述你已确认的事实，再决定下一步；如果信息已足够，请直接作答。"})
+            print(f"[step {state['step']}] 注入无进展提示（连续 {state['no_progress']} 步）")
+            state["no_progress"] = 0       # 只提示一次，别每步都灌
         log(event="step", step=state["step"], ms=round((time.time() - t0) * 1000),
             chars=ctx_chars(messages), tokens=state["tokens"])
         save_state(state)                    # 每步落盘，这是能断点续跑的全部秘密
@@ -438,7 +493,8 @@ if __name__ == "__main__":
             try:
                 run(QUESTION, FakeClient([
                     _Msg(tool_calls=[_Call(1, "list_files", {"subdir": "batch"})]),
-                    _Msg(tool_calls=[_Call(2, "read_file", {"path": "batch/log_01.log"})]),
+                    _Msg(tool_calls=[_Call(2, "list_files", {"subdir": "batch"})]),
+                    _Msg(tool_calls=[_Call(3, "list_files", {"subdir": "batch"})]),
                 ]))     # 脚本耗尽 -> 抛异常，模拟进程被杀
             except IndexError:
                 print(f"\n[模拟崩溃] 进程在容器里被 OOM kill 了。")
