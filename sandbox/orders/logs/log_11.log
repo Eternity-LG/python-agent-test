@@ -1,0 +1,50 @@
+2026-11-18 10:16:40.068 ERROR rid=REQ-27ced0 status=retry latency=336ms
+2026-11-18 10:25:03.223 WARN  slow query 783ms table=orders
+2026-11-18 10:16:44.637 WARN  slow query 579ms table=orders
+2026-11-18 10:16:46.874 WARN  slow query 1063ms table=orders
+2026-11-18 10:33:36.193 INFO  POST /v1/checkout 201 45ms
+2026-11-18 10:16:50.725 INFO  rid=REQ-071b06 status=ok latency=491ms
+2026-11-18 10:33:44.467 INFO  POST /v1/checkout 201 45ms
+2026-11-18 10:25:21.247 INFO  GET /v1/cart 200 12ms
+2026-11-18 10:25:24.624 INFO  POST /v1/checkout 201 45ms
+2026-11-18 10:25:27.810 INFO  GET /v1/cart 200 12ms
+2026-11-18 10:17:00.487 WARN  slow query 1078ms table=orders
+2026-11-18 10:17:02.381 ERROR rid=REQ-68df44 status=ok latency=302ms
+2026-11-18 10:17:04.120 INFO  GET /v1/cart 200 12ms
+2026-11-18 10:34:12.323 WARN  slow query 1128ms table=orders
+2026-11-18 10:25:42.511 WARN  rid=REQ-bbe252 status=retry latency=250ms
+2026-11-18 10:17:10.587 INFO  POST /v1/checkout 201 45ms
+2026-11-18 10:25:48.674 WARN  rid=REQ-cafd56 status=ok latency=96ms
+2026-11-18 10:25:51.342 WARN  rid=REQ-6a2107 status=retry latency=179ms
+2026-11-18 10:34:32.177 INFO  POST /v1/checkout 201 45ms
+2026-11-18 10:17:18.453 WARN  rid=REQ-8b36c4 status=retry latency=153ms
+2026-11-18 10:17:20.879 WARN  rid=REQ-6a2107 status=retry latency=179ms
+2026-11-18 10:17:22.219 INFO  GET /health 200 3ms
+2026-11-18 10:26:06.428 INFO  GET /health 200 3ms
+2026-11-18 10:17:26.247 WARN  rid=REQ-8b36c4 status=retry latency=153ms
+2026-11-18 10:26:12.855 INFO  GET /v1/cart 200 12ms
+2026-11-18 10:35:00.329 WARN  slow query 1000ms table=orders
+2026-11-18 10:26:18.771 DEBUG cache hit key=user:6035
+2026-11-18 10:35:08.000 DEBUG cache hit key=user:7063
+2026-11-18 10:35:12.418 WARN  slow query 1076ms table=orders
+2026-11-18 10:35:16.072 INFO  GET /v1/cart 200 12ms
+2026-11-18 10:17:40.766 INFO  GET /health 200 3ms
+2026-11-18 10:35:24.380 DEBUG cache hit key=user:3390
+2026-11-18 10:35:28.967 INFO  rid=REQ-1e584c status=ok latency=226ms
+2026-11-18 10:26:39.290 INFO  rid=REQ-071b06 status=ok latency=491ms
+2026-11-18 10:17:48.244 WARN  rid=REQ-8c261b status=retry latency=71ms
+2026-11-18 10:35:40.344 INFO  GET /health 200 3ms
+2026-11-18 10:35:44.984 WARN  rid=REQ-cafd56 status=ok latency=96ms
+2026-11-18 10:17:54.500 DEBUG cache hit key=user:5052
+2026-11-18 10:26:54.862 WARN  rid=REQ-cafd56 status=ok latency=96ms
+2026-11-18 10:26:57.920 DEBUG cache hit key=user:4879
+2026-11-18 10:27:00.753 INFO  GET /v1/cart 200 12ms
+2026-11-18 10:36:04.052 WARN  rid=REQ-6a2107 status=retry latency=179ms
+2026-11-18 10:18:04.509 WARN  rid=REQ-673fd6 status=ok latency=453ms
+2026-11-18 10:36:12.986 INFO  GET /health 200 3ms
+2026-11-18 10:27:12.709 INFO  GET /v1/cart 200 12ms
+2026-11-18 10:18:10.001 INFO  GET /health 200 3ms
+2026-11-18 10:36:24.783 INFO  GET /health 200 3ms
+2026-11-18 10:27:21.375 WARN  slow query 1151ms table=orders
+2026-11-18 10:27:24.058 INFO  GET /health 200 3ms
+2026-11-18 10:36:36.744 WARN  rid=REQ-cafd56 status=ok latency=96ms
