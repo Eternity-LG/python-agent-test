@@ -506,7 +506,7 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
         d = msg.model_dump(exclude_none=True)
         rc = d.pop("reasoning_content", None)
         if rc:
-            (RUN_DIR / "artifacts" / f"reasoning_step.txt").write_text(rc, encoding="utf-8")
+            (RUN_DIR / "artifacts" / f"reasoning_step{state['step']}.txt").write_text(rc, encoding="utf-8")
 #        log(event="reasoning", step=state["step"], chars=len(rc))
         messages.append(d)
 
