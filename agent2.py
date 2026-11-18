@@ -437,7 +437,7 @@ def ctx_chars(messages: list) -> int:
 
 
 # ---------- 主循环 ----------
-def run(question: str, client, self_test: bool = False, resume: str | None = None) -> str:
+def run(question: str, client, self_test: bool = False, resume: str | None = None) -> tuple[Path, str]:
     global RUN_DIR
     # 模式只决定"根目录"（自检隔离到 _selftest/），分支决定"标识"（时间戳目录）
     base = RUNS / "_selftest" if self_test else RUNS
@@ -481,7 +481,7 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
                   f"累计 {state['tokens']} tokens")
             log(event="finish", step=state["step"], chars=ctx_chars(messages), tokens=state["tokens"])
             save_state(state)
-            return msg.content or ""
+            return RUN_DIR,msg.content or ""
         step_new = 0                       # 本步新信息计数，必须在 while 内、for 外
         for call in msg.tool_calls:
             args = json.loads(call.function.arguments or "{}")
@@ -527,7 +527,7 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
         save_state(state)                    # 每步落盘，这是能断点续跑的全部秘密
 
     print("[warn] 达到步数上限")
-    return "未在限定步数内完成，已中止（state.json 仍在，可 --resume）。"
+    return RUN_DIR,"未在限定步数内完成，已中止（state.json 仍在，可 --resume）。"
 
 
 if __name__ == "__main__":
