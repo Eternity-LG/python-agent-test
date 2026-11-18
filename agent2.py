@@ -85,7 +85,7 @@ def write_report(path: str, content: str) -> str:
     return f"已写入 {p.name}，{len(content)} 字符"
 
 # ---------- 新增工具：findstr ----------
-def _zero_evidence(p_root: Path, needle: str, single: bool) -> str:
+def _zero_evidence(p_root: Path, needle: str, single: bool, ignore_case: bool = False) -> str:
     """零值自证：回答"这个 0 是真的没有，还是没读到"。
     只在 total == 0 时调用——正常有命中的路径不付这个成本。
     给三样东西：分母（扫了多少文件/行）、最可能的误判原因（大小写变体）、一条可核对的样例。"""
@@ -105,7 +105,8 @@ def _zero_evidence(p_root: Path, needle: str, single: bool) -> str:
             continue
     head = f"已扫描 {len(files)} 个文件、{n_lines} 行（读完整了，不是没找到文件）"
     if not variants:
-        return f"{head}；区分大小写地搜 {needle!r} 确实一处都没有"
+        how = "忽略大小写地搜" if ignore_case else "区分大小写地搜"
+        return f"{head}；{how} {needle!r} 确实一处都没有"
     rel, no, text = variants[0]
     return (f"{head}；另有 {len(variants)} 行是大小写不同的写法，"
             f"如 {rel}:{no} {text[:70]!r}。若要忽略大小写请改传 needle={low!r}")
@@ -146,9 +147,13 @@ def _zero_files_note(p_root: Path, zero_names: list[str], needle: str) -> str:
     return note
 
 
-def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 12) -> str:
+def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 12,
+            ignore_case: bool = False) -> str:
     """统计 path 目录（含子目录）或单个文件中，包含 needle 的行数。
     show_lines=True 时额外返回匹配行，格式为“文件名:行号: 内容”，最多返回 max_lines 行。
+    ignore_case=True 时不区分大小写——统计 ERROR+error 总行数应传 true，
+    而不是分别搜两遍再相加（t03 的两次实测：不加这个参数模型会裸读全部文件，
+    两次分别烧掉 188k 和 167k tokens）。
     path 指向单个文件时走纯 Python 扫描（子进程的 cwd 不能是文件）。"""
     from agent import _safe
     try:
@@ -168,8 +173,8 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
             return f"{path} 是空目录：没有任何文件。请确认路径，或用 list_files 查看目录内容"
 
         if show_lines:
-            matches = (_findstr_lines_single(p_root, needle) if single
-                       else _findstr_lines(p_root, needle))
+            matches = (_findstr_lines_single(p_root, needle, ignore_case) if single
+                       else _findstr_lines(p_root, needle, ignore_case))
             # 工具自己守住输出预算：单行实测约 84 字符，12 行约 1100 < 1200 落盘阈值。
             # max_lines 来自模型，不可信任，超出预算一律收紧——否则输出被落盘，
             # show_lines 就失去了"替代 read_file→read_artifact 三连"的意义。
@@ -177,8 +182,9 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
             total = len(matches)
             if total == 0:
                 scope = f"文件 {path}" if single else f"{path} 下 {len(all_files)} 个文件"
-                return (f"{scope} 中未找到 {needle!r}（区分大小写）\n"
-                        f"{_zero_evidence(p_root, needle, single)}")
+                case_note = "（区分大小写）" if not ignore_case else "（已忽略大小写）"
+                return (f"{scope} 中未找到 {needle!r}{case_note}\n"
+                        f"{_zero_evidence(p_root, needle, single, ignore_case)}")
             detail = "\n".join(
                 f"{name}:{lineno}: {content}"
                 for name, lineno, content in matches[:limit]
@@ -189,24 +195,26 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
             return f"{header}\n{detail}"
 
         if single:
-            n = len(_findstr_lines_single(p_root, needle))
+            n = len(_findstr_lines_single(p_root, needle, ignore_case))
             if n == 0:
-                return (f"文件 {path} 中 {needle!r} 共 0 行\n"
-                        f"{_zero_evidence(p_root, needle, True)}")
+                case_note = "" if ignore_case else "（区分大小写）"
+                return (f"文件 {path} 中 {needle!r} 共 0 行{case_note}\n"
+                        f"{_zero_evidence(p_root, needle, True, ignore_case)}")
             return f"文件 {path} 中 {needle!r} 共 {n} 行"
 
         # findstr/grep 不返回 0 匹配的文件；shell 不可用时回退到 Python
-        counts = _findstr_subprocess(p_root, needle)
+        counts = _findstr_subprocess(p_root, needle, ignore_case)
         if counts is None:
-            counts = _findstr_python(p_root, needle) or {}
+            counts = _findstr_python(p_root, needle, ignore_case) or {}
         counts = {name.replace("\\", "/"): count for name, count in counts.items()}
         per_file = {name: counts.get(name, 0) for name in all_files}
         total = sum(per_file.values())
+        case_note = "（不区分大小写）" if ignore_case else ""
         detail = "\n".join(f"  {name}: {count}" for name, count in per_file.items())
         body = (f"目录 {path} 下 {len(per_file)} 个文件中，"
-                f"{needle!r} 共出现在 {total} 行\n{detail}")
+                f"{needle!r} 共出现在 {total} 行{case_note}\n{detail}")
         if total == 0:
-            body += "\n" + _zero_evidence(p_root, needle, False)
+            body += "\n" + _zero_evidence(p_root, needle, False, ignore_case)
         else:
             zero_names = [name for name, count in per_file.items() if count == 0]
             if zero_names:
@@ -221,27 +229,33 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
         return f"findstr 执行失败 {type(e).__name__}: {e}"
 
 
-def _findstr_lines_single(p: Path, needle: str) -> list[tuple[str, int, str]]:
+def _findstr_lines_single(p: Path, needle: str, ignore_case: bool = False) -> list[tuple[str, int, str]]:
     """扫描单个文件，返回 [(文件名, 行号, 行内容)]。
     刻意不走子进程：subprocess 的 cwd 传一个文件会抛 NotADirectoryError，
     而单文件本来就很小，纯 Python 扫描行号更精确、两个平台输出一字不差。"""
     matches = []
+    target = needle.lower() if ignore_case else needle
     with open(p, "r", encoding="utf-8", errors="replace") as f:
         for lineno, line in enumerate(f, 1):
-            if needle in line:
+            hit = line.lower() if ignore_case else line
+            if target in hit:
                 matches.append((p.name, lineno, line.rstrip("\r\n")))
     return matches
 
 
-def _findstr_lines(p_root: Path, needle: str) -> list[tuple[str, int, str]]:
+def _findstr_lines(p_root: Path, needle: str, ignore_case: bool = False) -> list[tuple[str, int, str]]:
     """返回所有匹配行；优先使用带行号的系统命令，失败时回退到 Python。"""
     import subprocess
 
     try:
         if sys.platform == "win32":
             command = ["findstr", "/S", "/N", "/C:" + needle, "*.*"]
+            if ignore_case:
+                command.insert(2, "/I")
         else:
             command = ["grep", "-rFn", needle, "--include=*.*", "."]
+            if ignore_case:
+                command.insert(1, "-i")
         proc = subprocess.run(
             command, cwd=str(p_root), capture_output=True, text=True,
             encoding="utf-8", errors="replace",
@@ -263,27 +277,31 @@ def _findstr_lines(p_root: Path, needle: str) -> list[tuple[str, int, str]]:
         pass
 
     matches = []
+    target = needle.lower() if ignore_case else needle
     for p in p_root.rglob("*.*"):
         if not p.is_file():
             continue
         name = p.relative_to(p_root).as_posix()
         with open(p, "r", encoding="utf-8", errors="replace") as f:
             for lineno, line in enumerate(f, 1):
-                if needle in line:
+                hit = line.lower() if ignore_case else line
+                if target in hit:
                     matches.append((name, lineno, line.rstrip("\r\n")))
     return matches
 
 
-def _findstr_subprocess(p_root: Path, needle: str) -> dict | None:
+def _findstr_subprocess(p_root: Path, needle: str, ignore_case: bool = False) -> dict | None:
     """尝试用系统命令一次性搜完；失败（找不到命令、输出异常）返回 None。"""
     import subprocess
     file_pattern = "*.*"
     try:
         if sys.platform == "win32":
-            # Windows findstr: /S 递归 /C: 字面量（大小写敏感，正是我们要的）
-            # /I 忽略大小写（不加就默认敏感）
+            # Windows findstr: /S 递归 /C: 字面量（默认大小写敏感） /I 忽略大小写
+            command = ["findstr", "/S", "/C:" + needle, file_pattern]
+            if ignore_case:
+                command.insert(2, "/I")
             proc = subprocess.run(
-                ["findstr", "/S", "/C:" + needle, file_pattern],
+                command,
                 cwd=str(p_root), capture_output=True, text=True, encoding="utf-8",
                 errors="replace",
             )
@@ -292,9 +310,12 @@ def _findstr_subprocess(p_root: Path, needle: str) -> dict | None:
                 return None
             return _parse_findstr_win(proc.stdout)
         else:
-            # Unix-like grep: -r 递归 -F 字面量（默认大小写敏感）
+            # Unix-like grep: -r 递归 -F 字面量（默认大小写敏感） -i 忽略大小写
+            command = ["grep", "-rF", needle, "--include=" + file_pattern, "."]
+            if ignore_case:
+                command.insert(1, "-i")
             proc = subprocess.run(
-                ["grep", "-rF", needle, "--include=" + file_pattern, "."],
+                command,
                 cwd=str(p_root), capture_output=True, text=True, encoding="utf-8",
                 errors="replace",
             )
@@ -330,15 +351,19 @@ def _parse_findstr_unix(stdout: str) -> dict:
     return per_file
 
 
-def _findstr_python(p_root: Path, needle: str) -> dict:
+def _findstr_python(p_root: Path, needle: str, ignore_case: bool = False) -> dict:
     """回退方案：纯 Python 逐文件逐行读。键用相对路径，与 all_files 对齐，子目录同名文件不会互相覆盖。"""
     per_file = {}
+    target = needle.lower() if ignore_case else needle
     for p in p_root.rglob("*.*"):
         if not p.is_file():
             continue
         with open(p, "r", encoding="utf-8", errors="replace") as f:
             name = p.relative_to(p_root).as_posix()
-            per_file[name] = sum(1 for line in f if needle in line)
+            if ignore_case:
+                per_file[name] = sum(1 for line in f if target in line.lower())
+            else:
+                per_file[name] = sum(1 for line in f if target in line)
     return per_file or None
 
 
@@ -354,7 +379,7 @@ TOOLS = BASE_TOOLS + [
         "type": "function",
         "function": {
             "name": "findstr",
-            "description": "统计目录下所有文件中，包含指定字符串的行数；也可返回匹配行的文件名、行号和内容。path 传目录时会一次性返回每个文件的计数，比逐文件调用省得多；只有需要核对某个具体文件时才传文件路径",
+            "description": "统计目录下所有文件中，包含指定字符串的行数；也可返回匹配行的文件名、行号和内容。path 传目录时会一次性返回每个文件的计数，比逐文件调用省得多；只有需要核对某个具体文件时才传文件路径。需要同时统计大小写变体（如 ERROR 和 error 的总行数）时传 ignore_case=true，一次调用即可，不要分别搜两遍再相加",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -362,6 +387,7 @@ TOOLS = BASE_TOOLS + [
                     "needle": {"type": "string", "description": "要查找的字符串，如 ERROR"},
                     "show_lines": {"type": "boolean", "description": "是否返回匹配行明细，默认 false"},
                     "max_lines": {"type": "integer", "description": "show_lines=true 时最多返回多少行，默认 12，超过 12 会被收紧到 12（防止输出过大被落盘）"},
+                    "ignore_case": {"type": "boolean", "description": "不区分大小写匹配，默认 false。统计大小写变体总行数时必传 true，避免逐文件手工核对"},
                 },
                 "required": ["path", "needle"],
             },
