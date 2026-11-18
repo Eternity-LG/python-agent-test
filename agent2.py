@@ -437,8 +437,12 @@ def ctx_chars(messages: list) -> int:
 
 
 # ---------- 主循环 ----------
-def run(question: str, client, resume: str | None = None) -> str:
+def run(question: str, client, self_test: bool = False, resume: str | None = None) -> str:
     global RUN_DIR
+    if self_test:
+        # 自检产物与真实 run 隔离；目录固定复用，故必须 exist_ok=True
+        RUN_DIR = RUNS / "_selftest"
+        (RUN_DIR / "artifacts").mkdir(parents=True, exist_ok=True)
     if resume:
         RUN_DIR = RUNS / resume
         state = json.loads((RUN_DIR / "state.json").read_text(encoding="utf-8"))
@@ -448,8 +452,10 @@ def run(question: str, client, resume: str | None = None) -> str:
         state.setdefault("no_progress", 0)
         log(event="resume", step=state["step"], model=MODEL, base_url=BASE_URL)
     else:
-        RUN_DIR = RUNS / (time.strftime("%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4])
-        (RUN_DIR / "artifacts").mkdir(parents=True)
+        if not self_test:
+            # self_test 模式下 RUN_DIR 已指向 _selftest，这里不能再覆盖成时间戳目录
+            RUN_DIR = RUNS / (time.strftime("%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4])
+            (RUN_DIR / "artifacts").mkdir(parents=True)
         state = {
             "messages": [
                 {"role": "system", "content": SYSTEM},
@@ -535,7 +541,7 @@ if __name__ == "__main__":
         from agent import FakeClient, _Call, _Msg
         if resume_id:
             print("=== 自检：恢复模式 ===")
-            print(run(QUESTION, FakeClient([_Msg(content="(自检) 已完成并写入报告")]), resume=resume_id))
+            print(run(QUESTION, FakeClient([_Msg(content="(自检) 已完成并写入报告")]), self_test=True, resume=resume_id))
         else:
             print("=== 自检：正常模式，跑到一半会模拟崩溃 ===")
             try:
@@ -543,7 +549,7 @@ if __name__ == "__main__":
                     _Msg(tool_calls=[_Call(1, "list_files", {"subdir": "batch"})]),
                     _Msg(tool_calls=[_Call(2, "list_files", {"subdir": "batch"})]),
                     _Msg(tool_calls=[_Call(3, "list_files", {"subdir": "batch"})]),
-                ]))     # 脚本耗尽 -> 抛异常，模拟进程被杀
+                ]), self_test=True)     # 脚本耗尽 -> 抛异常，模拟进程被杀
             except IndexError:
                 print(f"\n[模拟崩溃] 进程在容器里被 OOM kill 了。")
                 print(f"继续跑: python agent2.py --resume {{上面打印的 run 目录名}} --self-test")
@@ -558,4 +564,4 @@ if __name__ == "__main__":
         print(f"[config] api_key  = {key[:6]}…{key[-4:]}（{len(key)} 位）← {source_of('OPENAI_API_KEY')}")
         print(f"[config] .env     = {ENV_FILE}{'' if ENV_FILE.exists() else '  [不存在]'}")
         print(f"[config] runs     = {RUNS}")
-        print(run(QUESTION, OpenAI(api_key=key, base_url=BASE_URL), resume=resume_id))
+        print(run(QUESTION, OpenAI(api_key=key, base_url=BASE_URL), self_test=False, resume=resume_id))
