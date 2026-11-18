@@ -28,6 +28,8 @@ BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.deepseek.com/v1")
 MODEL = os.getenv("MODEL", "deepseek-v4-flash")
 MAX_STEPS = 12          # 硬性终止条件。没有它，agent 能一直循环到烧完额度
 MAX_TOOL_CHARS = 4000   # 单个工具结果回灌上限。上下文爆炸全是从这里开始的
+READ_CHAR_BUDGET = 1000 # read_file 的字符预算。必须低于 agent2.ARTIFACT_THRESHOLD(1200)，
+                        # 否则结果落盘、模型还得再调 read_artifact，一次读原文付两次钱
 SANDBOX = Path(os.getenv("AGENT_SANDBOX", Path(__file__).parent / "sandbox")).resolve()
 
 # ---------- 0. 系统提示词 ----------
@@ -56,12 +58,13 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "read_file",
-            "description": "按行读取文本文件的前若干行。文件较大时只会返回开头部分。",
+            "description": "按行读取文本文件。输出同时受行数和字符预算（约 1000 字符）限制，截断时会说明给了第几到第几行、以及下一次该传的 offset。它适合看原文片段；只统计或定位某段内容时用 findstr 的 show_lines 更省——只返回命中行，不被预算挤占",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "相对路径，如 app.log"},
-                    "max_lines": {"type": "integer", "description": "最多读多少行，默认 200"},
+                    "max_lines": {"type": "integer", "description": "本次最多读多少行，默认 200；字符预算先到会先截断"},
+                    "offset": {"type": "integer", "description": "从第几行开始读（0 表示文件开头）。截断提示里会给出下一次该传的值"},
                 },
                 "required": ["path"],
             },
@@ -97,11 +100,49 @@ def list_files(subdir: str = ".") -> str:
     return "\n".join(items) if items else "(空目录)"
 
 # ---------- 2.2. 读取文本文件的前若干行 ----------
-def read_file(path: str, max_lines: int = 200) -> str:
+def read_file(path: str, max_lines: int = 200, offset: int = 0,
+              max_chars: int = READ_CHAR_BUDGET) -> str:
+    """按行读取文件，同时受行数和字符预算两个上限约束，支持按 offset 分段。
+
+    为什么要字符预算：只限行数时，30 行的日志就有 1500+ 字符，超过
+    agent2.ARTIFACT_THRESHOLD 会被落盘，模型想看内容还得再调一次
+    read_artifact —— 一次读原文付两次钱（实测 t05 就是这么浪费的）。
+    把预算压到阈值以下，read_file 一次就能把"给得起的信息"全给完。
+
+    为什么要 offset：预算一旦成为硬闸门，没有 offset 就等于文件尾部永远读不到
+    （加 max_lines 也越不过预算）。截断提示里直接给出下一次该传的 offset。
+
+    截断时明确交代：给了第几到第几行 / 一共几行 / 下一次从哪读。
+    模型不该靠猜自己拿到的是不是全文。
+    """
     lines = _safe(path).read_text(encoding="utf-8", errors="replace").splitlines()
-    body = "\n".join(lines[:max_lines])
-    if len(lines) > max_lines:
-        body += f"\n...(已截断，文件共 {len(lines)} 行)"
+    start = max(0, int(offset))
+    if start >= len(lines) and lines:
+        return (f"offset={start} 超出文件行数：{path} 共 {len(lines)} 行"
+                f"（行号从 1 开始，offset 从 0 开始，最大可传 {len(lines) - 1}）")
+    budget = max(200, min(int(max_chars), READ_CHAR_BUDGET))   # 硬顶：传大也无效
+    window = lines[start:start + max(1, max_lines)]
+    picked, used = [], 0
+    for line in window:
+        cost = len(line) + 1                                   # +1 是换行符
+        if used + cost > budget:
+            break
+        picked.append(line)
+        used += cost
+    cut_line = False
+    if not picked and window:           # 首行就超预算：硬切一刀，别返回空
+        picked.append(window[0][:max(1, budget - 140)])
+        cut_line = True
+    body = "\n".join(picked)
+    stop = start + len(picked)
+    if cut_line:                        # 单行超预算，交代"这一行也没给全"
+        body += (f"\n...(已截断：第 {start + 1} 行超过 {budget} 字符预算，只给了前 "
+                 f"{len(picked[0])} 字符；文件共 {len(lines)} 行。"
+                 f"要定位具体内容请用 findstr 的 show_lines)")
+    elif stop < len(lines):
+        body += (f"\n...(已截断：本次给了第 {start + 1}–{stop} 行，共 {len(lines)} 行，"
+                 f"受 {budget} 字符预算限制。要看后续请传 offset={stop}，"
+                 f"或改用 findstr 的 show_lines 只取命中行)")
     return body
 
 # ---------- 2.3. 四则运算求值 ----------

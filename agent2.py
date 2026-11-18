@@ -23,6 +23,8 @@ from agent import BASE_URL, MODEL, SANDBOX, TOOLS as BASE_TOOLS, dispatch
 
 MAX_STEPS = 40          # 任务变长了，步数上限必须放宽——这也是上下文会爆的原因
 ARTIFACT_THRESHOLD = 1200   # 工具结果超过这么多字符就落盘，只把摘要塞回 messages
+                            # （read_file 的字符预算 agent.READ_CHAR_BUDGET=1000 要低于它，
+                            #   否则读原文会落盘、模型还得再调 read_artifact，付两次钱）
 
 _runs_env = os.getenv("RUNS")           # .env 里的 RUNS 优先，否则用项目根/runs
 if _runs_env:
