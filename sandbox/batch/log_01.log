@@ -25,3 +25,4 @@
 2026-11-16 10:01:23 INFO  handled message id=123
 2026-11-16 10:01:24 WARN  retry error count=0 handled by backoff
 2026-11-16 10:01:25 INFO  GET /api/user/35 200 10ms
+2026-11-16 10:01:26 WARN  retry error count=33 handled by backoff
