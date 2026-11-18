@@ -2,7 +2,7 @@
 import json, re, sys
 from pathlib import Path
 
-from agent import SANDBOX
+from agent import SANDBOX, MODEL
 
 # ── 1. 任务清单 ──────────────────────────────────
 # 每条 question 末尾都有输出契约："报告最后一行写 TOTAL=<数字>"，
@@ -70,18 +70,19 @@ if __name__ == "__main__":
     runs_dir = Path("runs")
     runs_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"{'id':<20} {'expected':>8} {'got':>6} {'pass':>5}  {'steps':>5} {'calls':>5} {'tokens':>7}")
-    print("-" * 68)
+    print(f"{'id':<20} {'model':<18} {'expected':>8} {'got':>6} {'pass':>5}  {'steps':>5} {'calls':>5} {'tokens':>7}")
+    print("-" * 86)
 
     for task in TASKS[:limit]:
         expected = oracle(task["needle"], task.get("ignore_case", False))
         run_dir, report_md, state = run_task(task)
         passed, got = score(report_md, expected)
-        print(f"{task['id']:<20} {expected:>8} {str(got):>6} {'OK' if passed else 'FAIL':>5}  "
+        print(f"{task['id']:<20} {MODEL:<18} {expected:>8} {str(got):>6} {'OK' if passed else 'FAIL':>5}  "
               f"{state['step']:>5} {sum(state['calls'].values()):>5} {state['tokens']:>7}")
 
         result = {
             "task": task,
+            "model": MODEL,
             "expected": expected,
             "got": got,
             "passed": passed,
