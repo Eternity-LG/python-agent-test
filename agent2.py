@@ -503,7 +503,14 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
         )
         msg = resp.choices[0].message
         state["tokens"] += resp.usage.total_tokens if resp.usage else 0
-        messages.append(msg.model_dump(exclude_none=True))
+        d = msg.model_dump(exclude_none=True)
+        rc = d.pop("reasoning_content", None)
+        if rc:
+            (RUN_DIR / "artifacts" / f"reasoning_step.txt").write_text(rc, encoding="utf-8")
+#        log(event="reasoning", step=state["step"], chars=len(rc))
+        messages.append(d)
+
+#       messages.append(msg.model_dump(exclude_none=True))
 
         if not msg.tool_calls:
             print(f"[step {state['step']}] 完成，上下文 {ctx_chars(messages)} 字符，"
