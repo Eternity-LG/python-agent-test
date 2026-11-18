@@ -91,3 +91,35 @@ python agent2.py            # 产物在 runs/<时间戳-id>/
 - 耗时 213.2s→29.5s、单步 20–71s→2–9s：同模型同 prompt，服务端状态或思考档位波动所致，
   **不可归因于代码改动**。reasoning 3,288→1,971 字符同步减少，方向一致。
 - 逐文件 20 项与 `grep -c ERROR` 逐项一致，总数 37 一致。
+
+## eval 评测（1118，eval.py --limit 3，deepseek-v4-flash）
+
+| 任务 | expected | got | 判定 | 步 | 调用 | tokens |
+|---|---|---|---|---|---|---|
+| t01_error_total | 37 | 37 | OK | 5 | 4 | 9,974 |
+| t02_lower_error | 80 | 80 | OK | 6 | 7 | 13,998 |
+| t03_ci_error | 117 | 117 | OK | 5 | 4 | **9,216** |
+
+### ignore_case 的验证（同模型 t03 前后对照）
+
+| | 改前（1118-172305-2aaf） | 改后（1118-174140-398c） |
+|---|---|---|
+| 调用 | 49（read_file×20 + read_artifact×20 + findstr×4） | **4** |
+| tokens | 167,280 | **9,216**（−94.5%） |
+| 步 | 13 | 5 |
+
+改后模型一次调用 `findstr(batch, error, ignore_case=true)` 即得 117，
+完全按 TOOLS description 的指示行事——工具能力写进 schema，模型才会用。
+
+### eval 揪出的问题（按发现顺序）
+
+1. 打分器 bug 会伪装成 agent 错误：正则被 markdown 粗体击穿，t01/t02
+   答对了却判 FAIL。根治：question 末尾加 TOTAL=<数字> 输出契约，
+   打分器单正则提取，提取不到单独标 None。
+2. 占位符 question（字面"..."）发给模型 → 范围漂移（扫了 sandbox 全部
+   23 个文件）。题目不完整不是模型的错。
+3. 数据均匀可猜：batch 每文件小写 error 恰好都是 4 行，t02 可从单文件
+   外推 4×20=80。重造数据时应让行数不均匀。
+4. findstr 缺 ignore_case → 已修（见上表）。
+5. read_file→artifact→read_artifact 双重付费：每文件 ~1400 字符超
+   1200 阈值，模型读原文需两次调用。独立问题，未修。
