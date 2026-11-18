@@ -439,12 +439,11 @@ def ctx_chars(messages: list) -> int:
 # ---------- 主循环 ----------
 def run(question: str, client, self_test: bool = False, resume: str | None = None) -> str:
     global RUN_DIR
-    if self_test:
-        # 自检产物与真实 run 隔离；目录固定复用，故必须 exist_ok=True
-        RUN_DIR = RUNS / "_selftest"
-        (RUN_DIR / "artifacts").mkdir(parents=True, exist_ok=True)
+    # 模式只决定"根目录"（自检隔离到 _selftest/），分支决定"标识"（时间戳目录）
+    base = RUNS / "_selftest" if self_test else RUNS
     if resume:
-        RUN_DIR = RUNS / resume
+        # self_test 时 resume 名按 _selftest/ 下的子目录解析，与自检打印的名字一致
+        RUN_DIR = base / resume if self_test else RUNS / resume
         state = json.loads((RUN_DIR / "state.json").read_text(encoding="utf-8"))
         print(f"[resume] 从第 {state['step']} 步继续，已有 {len(state['messages'])} 条消息，"
               f"上下文 {ctx_chars(state['messages'])} 字符")
@@ -452,10 +451,8 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
         state.setdefault("no_progress", 0)
         log(event="resume", step=state["step"], model=MODEL, base_url=BASE_URL)
     else:
-        if not self_test:
-            # self_test 模式下 RUN_DIR 已指向 _selftest，这里不能再覆盖成时间戳目录
-            RUN_DIR = RUNS / (time.strftime("%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4])
-            (RUN_DIR / "artifacts").mkdir(parents=True)
+        RUN_DIR = base / (time.strftime("%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4])
+        (RUN_DIR / "artifacts").mkdir(parents=True)
         state = {
             "messages": [
                 {"role": "system", "content": SYSTEM},
