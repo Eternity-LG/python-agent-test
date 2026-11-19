@@ -148,9 +148,9 @@ def _zero_files_note(p_root: Path, zero_names: list[str], needle: str) -> str:
                  f"要核对请传 needle={low!r}")
     return note
 
-
-def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 12,
-            ignore_case: bool = False) -> str:
+MAX_NEEDLES = 40      # 40 × 约 22 字符 ≈ 880，仍在 1200 落盘阈值之下
+def findstr(path: str, needle: str="", show_lines: bool = False, max_lines: int = 12,
+            ignore_case: bool = False, needles: list[str]|None = None) -> str:
     """统计 path 目录（含子目录）或单个文件中，包含 needle 的行数。
     show_lines=True 时额外返回匹配行，格式为“文件名:行号: 内容”，最多返回 max_lines 行。
     ignore_case=True 时不区分大小写——统计 ERROR+error 总行数应传 true，
@@ -158,6 +158,24 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
     两次分别烧掉 188k 和 167k tokens）。
     path 指向单个文件时走纯 Python 扫描（子进程的 cwd 不能是文件）。"""
     from agent import _safe
+
+    # ---- 归一化：needles 优先；去重保序；超上限截断并明说 ----
+    raw = [str(n).strip() for n in (needles or []) if str(n).strip()]
+    if not raw and needle.strip():
+        raw = [needle.strip()]
+    if not raw:
+        return "findstr 需要 needle 或 needles 至少给一个非空字符串"
+
+    items, seen = [], set()
+    for n in raw:
+        if n not in seen:
+            seen.add(n)
+            items.append(n)
+    cut_note = ""
+    if len(items) > MAX_NEEDLES:
+        cut_note = f"\n注意：只统计了前 {MAX_NEEDLES} 个，另有 {len(items) - MAX_NEEDLES} 个未统计"
+        items = items[:MAX_NEEDLES]
+
     try:
         p_root = _safe(path)  # 先做沙箱校验，再交给 shell
         if not p_root.exists():
@@ -173,6 +191,12 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
             )
         if not all_files:
             return f"{path} 是空目录：没有任何文件。请确认路径，或用 list_files 查看目录内容"
+
+        if len(items) > 1:
+            files = [p_root] if single else sorted(p for p in p_root.rglob("*.*") if p.is_file())
+            return _findstr_many(path, files, items, ignore_case) + cut_note
+
+        needle = items[0]
 
         if show_lines:
             matches = (_findstr_lines_single(p_root, needle, ignore_case) if single
@@ -230,7 +254,6 @@ def findstr(path: str, needle: str, show_lines: bool = False, max_lines: int = 1
     except Exception as e:
         return f"findstr 执行失败 {type(e).__name__}: {e}"
 
-
 def _findstr_lines_single(p: Path, needle: str, ignore_case: bool = False) -> list[tuple[str, int, str]]:
     """扫描单个文件，返回 [(文件名, 行号, 行内容)]。
     刻意不走子进程：subprocess 的 cwd 传一个文件会抛 NotADirectoryError，
@@ -243,6 +266,41 @@ def _findstr_lines_single(p: Path, needle: str, ignore_case: bool = False) -> li
             if target in hit:
                 matches.append((p.name, lineno, line.rstrip("\r\n")))
     return matches
+
+def _findstr_many(path: str, files: list[Path], needles: list[str],
+                  ignore_case: bool = False) -> str:
+    """一次扫描、多目标聚合。只服务"同一批 id 各出现多少行"这类任务。
+
+    为什么需要它：T07 实测模型对 30 个 id 发了 31 次单 needle findstr，
+    每次返回"总计 + 12 文件明细"约 320 字符，它一次没用过明细；
+    39 次调用 / 13.9k 字符返回 / 75,105 tokens，其中 99% 的信息是噪声。
+    """
+    lines: list[str] = []
+    for p in files:
+        with open(p, "r", encoding="utf-8", errors="replace") as f:
+            lines.extend(f.readlines())
+    if not lines:
+        return f"{path} 下的文件都是空的，没有可统计的行"
+
+    counts = {}
+    for n in needles:                       # 600 行 × 30 目标 = 18k 次 in，可忽略
+        target = n.lower() if ignore_case else n
+        if ignore_case:
+            counts[n] = sum(1 for line in lines if target in line.lower())
+        else:
+            counts[n] = sum(1 for line in lines if target in line)
+
+    zero = [n for n, c in counts.items() if c == 0]
+    case_note = "（不区分大小写）" if ignore_case else "（区分大小写）"
+    body = "\n".join(f"  {n}: {c}" for n, c in counts.items())
+    head = (f"{path} 下 {len(files)} 个文件共 {len(lines)} 行，"
+            f"{len(needles)} 个目标各自命中的行数{case_note}：")
+    tail = ""
+    if zero:
+        # 只给汇总，不展开每文件明细；但保留"扫描了多少"这个自证
+        tail = (f"\n零命中的 {len(zero)} 个（已扫描 {len(files)} 个文件、{len(lines)} 行，"
+                f"不是没找到文件）：{'、'.join(zero)}")
+    return head + "\n" + body + tail
 
 
 def _findstr_lines(p_root: Path, needle: str, ignore_case: bool = False) -> list[tuple[str, int, str]]:
@@ -381,17 +439,25 @@ TOOLS = BASE_TOOLS + [
         "type": "function",
         "function": {
             "name": "findstr",
-            "description": "统计目录下所有文件中，包含指定字符串的行数；也可返回匹配行的文件名、行号和内容。path 传目录时会一次性返回每个文件的计数，比逐文件调用省得多；只有需要核对某个具体文件时才传文件路径。需要同时统计大小写变体（如 ERROR 和 error 的总行数）时传 ignore_case=true，一次调用即可，不要分别搜两遍再相加",
+            "description": "统计目录下所有文件中，包含指定字符串的行数；也可返回匹配行的文件名、行号和内容。"
+               "path 传目录时一次性返回每个文件的计数。"
+               "需要统计多个字符串（如 30 个 request_id 各出现多少行）时，必须用 needles 传数组一次搞定，"
+               "不要一个字符串发一次调用——逐个调用会把每个目标的逐文件明细全塞进上下文（实测 31 次调用烧掉 75k tokens）。"
+               "需要同时统计大小写变体（如 ERROR 和 error 的总行数）时传 ignore_case=true，一次调用即可，不要分别搜两遍再相加",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "相对路径。可以是目录（如 batch，递归搜索其下所有文件），也可以是单个文件（如 batch/log_16.log，只看这一个文件）"},
-                    "needle": {"type": "string", "description": "要查找的字符串，如 ERROR"},
+                    "needle": {"type": "string",
+                    "description": "单个要查找的字符串，如 ERROR。用 needles 批量时省略"},
+                    "needles": {"type": "array", "items": {"type": "string"},
+                    "description": "批量模式：一次统计多个字符串，返回每个各命中多少行，最多 40 个。"
+                                   "适用于“一组 id 各出现多少次”这类任务"},
                     "show_lines": {"type": "boolean", "description": "是否返回匹配行明细，默认 false"},
                     "max_lines": {"type": "integer", "description": "show_lines=true 时最多返回多少行，默认 12，超过 12 会被收紧到 12（防止输出过大被落盘）"},
                     "ignore_case": {"type": "boolean", "description": "不区分大小写匹配，默认 false。统计大小写变体总行数时必传 true，避免逐文件手工核对"},
                 },
-                "required": ["path", "needle"],
+                "required": ["path"],
             },
         },
     },
