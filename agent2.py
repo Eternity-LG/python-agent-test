@@ -158,9 +158,14 @@ def findstr(path: str, needle: str="", show_lines: bool = False, max_lines: int 
     两次分别烧掉 188k 和 167k tokens）。
     path 指向单个文件时走纯 Python 扫描（子进程的 cwd 不能是文件）。"""
     from agent import _safe
+    
+    needle = needle or ""          # null / 空值归一
 
     # ---- 归一化：needles 优先；去重保序；超上限截断并明说 ----
+    if isinstance(needles, str):
+        needles = [needles]
     raw = [str(n).strip() for n in (needles or []) if str(n).strip()]
+
     if not raw and needle.strip():
         raw = [needle.strip()]
     if not raw:
