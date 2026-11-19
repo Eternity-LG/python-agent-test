@@ -749,12 +749,16 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
             state["no_progress"] = 0       # 只提示一次，别每步都灌
         # prompt/completion/reasoning 三列是成本归因的地基：tokens 总量看不出
         # 钱花在"重发历史"还是"脑内计算"（T08 每步 +25k reasoning 就是这么发现的）
+        # cache_hit/miss 列：重发历史的真实单价是 miss 的约 1/10（DeepSeek 前缀缓存），
+        # 2026-11-19 靠这列在实现前否决了 P2b 上下文压缩（压缩会重写前缀、打掉缓存命中）
         log(event="step", step=state["step"], ms=round((time.time() - t0) * 1000),
             chars=ctx_chars(messages), tokens=state["tokens"],
             prompt=usage.prompt_tokens if usage else None,
             completion=usage.completion_tokens if usage else None,
             reasoning=getattr(getattr(usage, "completion_tokens_details", None),
-                              "reasoning_tokens", None))
+                              "reasoning_tokens", None),
+            cache_hit=getattr(usage, "prompt_cache_hit_tokens", None),
+            cache_miss=getattr(usage, "prompt_cache_miss_tokens", None))
         save_state(state)                    # 每步落盘，这是能断点续跑的全部秘密
 
     print("[warn] 达到步数上限")
