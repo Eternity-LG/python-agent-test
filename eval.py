@@ -124,6 +124,7 @@ def score(report_md: str, expected: int):
 # ── 5. 汇总 ──────────────────────────────────────
 if __name__ == "__main__":
     limit = int(sys.argv[sys.argv.index("--limit") + 1]) if "--limit" in sys.argv else len(TASKS)
+    repeat = int(sys.argv[sys.argv.index("--repeat") + 1]) if "--repeat" in sys.argv else 1
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
     selected = [t for t in TASKS if only is None or t["id"].startswith(only)]
 
@@ -132,26 +133,26 @@ if __name__ == "__main__":
 
     print(f"{'id':<20} {'model':<18} {'expected':>8} {'got':>6} {'pass':>5}  {'steps':>5} {'calls':>5} {'tokens':>7}")
     print("-" * 86)
-
-    for task in selected[:limit]:
+    for _ in range(repeat):
+        for task in selected[:limit]:
         # expected = oracle(task["needle"], task.get("ignore_case", False))
         #不懂这里为什么这么写
-        expected = task["expected_fn"]()
-        run_dir, report_md, state = run_task(task)
-        passed, got = score(report_md, expected)
-        print(f"{task['id']:<20} {MODEL:<18} {expected:>8} {str(got):>6} {'OK' if passed else 'FAIL':>5}  "
-              f"{state['step']:>5} {sum(state['calls'].values()):>5} {state['tokens']:>7}")
+            expected = task["expected_fn"]()
+            run_dir, report_md, state = run_task(task)
+            passed, got = score(report_md, expected)
+            print(f"{task['id']:<20} {MODEL:<18} {expected:>8} {str(got):>6} {'OK' if passed else 'FAIL':>5}  "
+                  f"{state['step']:>5} {sum(state['calls'].values()):>5} {state['tokens']:>7}")
 
-        result = {
-            "task": {k: v for k, v in task.items() if k != "expected_fn"},
-            "model": MODEL,
-            "expected": expected,
-            "got": got,
-            "passed": passed,
-            "run_dir": str(run_dir),
-            "state": state,
-            "report": report_md,
-        }
-        (runs_dir / f"eval_{task['id']}.json").write_text(
-            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+            result = {
+                "task": {k: v for k, v in task.items() if k != "expected_fn"},
+                "model": MODEL,
+                "expected": expected,
+                "got": got,
+                "passed": passed,
+                "run_dir": str(run_dir),
+                "state": state,
+                "report": report_md,
+            }
+            (runs_dir / f"eval_{task['id']}.json").write_text(
+                json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+            )   
