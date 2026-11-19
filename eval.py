@@ -71,10 +71,61 @@ def oracle_t07_top3() -> list[tuple[str, int]]:
     # 按行数、同数按 rid 升序，取前 3
     return sorted(counts.items(), key=lambda x: (-x[1], x[0]))[:3]
 
+# ============ T08 oracle：p50/p95/超500占比，与 oracle_t07 并列 ============
+METRICS_CSV = SANDBOX / "metrics" / "metrics.csv"
+#RQ-5afe7e,967
+_RID_URL_METRICS = re.compile(r"(RQ-[0-9a-f]{6},[0-9]+)")
+#查询所有的latency，返回一个int列表，列表中每个元素是一个int，表示一个请求的latency
+def oracle_t08_latencies() -> list[int]:
+    """第 1 步：读 csv，返回 200 个 latency_ms 的列表（顺序无所谓）。
+    """
+    text = METRICS_CSV.read_text(encoding="utf-8",errors="replace")
+    lats = _RID_URL_METRICS.findall(text)
+    assert len(lats) == 200, "metrics.csv 里有 200 行，每个 latency_ms 都是 int"
+    return [int(lat.split(",")[1]) for lat in lats]
+
+def oracle_t08_nearest_rank(lats: list[int], q: float) -> int:
+    """第 2 步：最近秩分位。口径题面已写死：升序排序后取第 ⌈q×N⌉ 个值（1-based），不插值。
+      - 禁止插值、禁止取平均：口径就是 nearest-rank，实现和口径不许分叉
+      - 执行完之后，先不返回，用命令行独立交叉验证三个数（Git Bash）
+        # P95：升序第 190 个（⌈0.95×200⌉=190）
+        tail -n +2 sandbox/metrics/metrics.csv | cut -d, -f2 | sort -n | sed -n '190p'
+        # P50：第 100 个
+        tail -n +2 sandbox/metrics/metrics.csv | cut -d, -f2 | sort -n | sed -n '100p'  
+        # 严格 >500 的行数
+        awk -F, 'NR>1 && $2>500' sandbox/metrics/metrics.csv | wc -l
+
+    """
+    sorted_lats = sorted(lats)
+    result=sorted_lats[re.match.ceil(q*len(lats))-1]
+    return result
+
+def oracle_t08() -> int:
+    """eval 入口：score() 只认一个 int，所以只返回 P95。"""
+    lats = oracle_t08_latencies()
+    return oracle_t08_nearest_rank(lats, 0.95)
+
+def oracle_t08_p50() -> int:
+    """人工核对用，不进打分器。TODO: 复用 nearest_rank，q=0.5"""
+    lats = oracle_t08_latencies()
+    return oracle_t08_nearest_rank(lats, 0.5)
+
+def oracle_t08_over500() -> tuple[int, int]:
+    """人工核对用。TODO:
+      - 严格 > 500（csv 里有恰好 500 的行，> 和 >= 会差出好几行）
+      - 返回 (行数, 占比百分数取整)，如 (69, 34)
+    """
+    lats = oracle_t08_latencies()
+    over500 = sum(lat > 500 for lat in lats)
+    return over500, int(over500 / 200 * 100)
+
+
 def _std(needle: str, ignore_case: bool = False):
     """工厂：把"要参数的 oracle"固化成"无参可调用"，主循环对 7 条任务一视同仁。
     必须调用它（_std("ERROR")）拿到闭包，传 _std 本身会 TypeError 缺 needle。"""
     return lambda: oracle(needle, ignore_case)
+
+
 
 TASKS = [
     # 口径（needle/ignore_case）只活在 _std(...) 闭包里一处；
@@ -93,6 +144,13 @@ TASKS = [
         "写入 report.md，倒数第三至最后一行依次为 TOP1=<id>:<行数>、TOP2=...、TOP3=...，"
         "最后一行写 TOTAL=<csv 里全部 id 的总行数>"),
         "expected_fn": oracle_t07},
+    {"id": "t08_p95_metrics",
+        "question": ("读 metrics/metrics.csv（表头 request_id,latency_ms，共 200 行数据）。"
+        "计算 P50 和 P95——口径：最近秩法 nearest-rank，升序排序后取第 ⌈q×200⌉ 个值"
+        "（1-based），不插值；再统计延迟严格大于 500ms 的行数与占比（恰好 500ms 不算）。"
+        "写入 report.md，依次写 P50=<整数>ms、P95=<整数>ms、OVER=<行数>/<百分比取整>%，"
+        "最后一行写 TOTAL=<P95 的毫秒值>"),
+        "expected_fn": oracle_t08},
 ]
 
 # ── 3. 执行（复用 agent2.run，不改它）──────────────

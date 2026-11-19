@@ -12,6 +12,7 @@
 import json
 import os
 import sys
+from telnetlib import RSP
 import time
 import uuid
 import hashlib, re
