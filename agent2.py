@@ -12,7 +12,6 @@
 import json
 import os
 import sys
-from telnetlib import RSP
 import time
 import uuid
 import hashlib, re
@@ -433,11 +432,71 @@ def _findstr_python(p_root: Path, needle: str, ignore_case: bool = False) -> dic
     return per_file or None
 
 
+# ---------- 新增能力 5：run_python（计算型任务，T08 分叉裁决） ----------
+_runpy_seq = 0            # 执行过的代码在 artifacts/ 留档，便于审计与复现
+RUN_PY_TIMEOUT = 5        # 默认超时秒数
+RUN_PY_OUTPUT_MAX = 1000  # 输出截断上限；< 1200 落盘阈值，避免触发 offload 双跳
+
+def run_python(code: str, timeout: int = RUN_PY_TIMEOUT) -> str:
+    """执行一段 Python 代码，返回 stdout+stderr 合并文本；任何失败都回灌文本，不抛异常。
+
+    为什么需要它（T08 实测 run 1119-194822）：没有计算工具时模型会在 reasoning 里
+    逐个数数（200 值直方图 → 每步 +25k tokens、单条 111k、墙钟 6.5 分钟）。
+    一次代码执行把"脑内模拟计算"换成真实计算。目标不是补能力——它没失败——
+    是把每步 25k 的思考成本换成毫秒级执行。
+
+    诚实边界：这不是安全沙箱。只限制了 cwd=SANDBOX 和 timeout；代码能读沙箱外的
+    文件、能联网。威胁模型是"模型算错"，不是"模型作恶"——不要在 description
+    或文档里写"安全"。
+    """
+    global _runpy_seq
+    if not str(code).strip():
+        return "run_python 需要 code 参数（非空 Python 代码）。四则运算请用 calc，更省"
+    import sys as _sys, subprocess
+    _runpy_seq += 1
+    script = None
+    try:                                   # RUN_DIR 未初始化时（单测）降级为 -c 执行
+        (RUN_DIR / "artifacts").mkdir(parents=True, exist_ok=True)
+        script = RUN_DIR / "artifacts" / f"runpy_{_runpy_seq}.py"
+        script.write_text(str(code), encoding="utf-8")
+    except Exception:
+        script = None
+    try:
+        timeout = max(1, min(int(timeout or RUN_PY_TIMEOUT), 30))
+        if script:
+            # resolve() 必须：cwd=SANDBOX 时相对路径会被子进程解析到 sandbox 下
+            proc = subprocess.run([_sys.executable, str(script.resolve())], cwd=SANDBOX,
+                                  capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace", timeout=timeout)
+        else:
+            proc = subprocess.run([_sys.executable, "-c", str(code)], cwd=SANDBOX,
+                                  capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace", timeout=timeout)
+        out, err = (proc.stdout or "").strip(), (proc.stderr or "").strip()
+        parts = [f"[exit {proc.returncode}]"]
+        if out:
+            parts.append(out)
+        if err:
+            parts.append("stderr:\n" + err)
+        text = "\n".join(parts)
+        if len(text) > RUN_PY_OUTPUT_MAX:
+            text = (text[:RUN_PY_OUTPUT_MAX]
+                    + f"\n[输出超过 {RUN_PY_OUTPUT_MAX} 字符已截断。"
+                      "只 print 最终需要的数字；完整结果可写入 sandbox/ 下的文件再分段读]")
+        return text
+    except subprocess.TimeoutExpired:
+        return (f"[超时] 代码执行超过 {timeout} 秒被终止。"
+                "检查是否有死循环或全量遍历大文件，先采样再统计")
+    except Exception as e:
+        return f"[执行失败] {type(e).__name__}: {e}"
+
+
 # 新增工具
 EXTRA = {
     "findstr": findstr,
     "read_artifact": read_artifact,
     "write_report": write_report,
+    "run_python": run_python,
 }
 # 新增工具描述
 TOOLS = BASE_TOOLS + [
@@ -495,6 +554,28 @@ TOOLS = BASE_TOOLS + [
                     "content": {"type": "string", "description": "完整文件内容"},
                 },
                 "required": ["path", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_python",
+            "description": "执行一段 Python 代码并返回 stdout/stderr。p50/p95/均值/占比/分组聚合等"
+                "统计计算必须用本工具一次完成，严禁在回复中逐行数数或心算——实测对 200 行数据"
+                "脑内做直方图会每步消耗 25k tokens。代码在 sandbox/ 目录下运行，可直接用 csv 等"
+                "标准库读沙箱内文件（如 metrics/metrics.csv）。"
+                "只 print 最终需要的数字，不要 print 中间数据，输出超过 1000 字符会被截断；"
+                "默认 5 秒超时，超时会返回提示",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string",
+                             "description": "完整可执行的 Python 代码（不是表达式——纯四则运算用 calc 更省）"},
+                    "timeout": {"type": "integer",
+                                "description": "超时秒数，默认 5，最大 30。遍历大文件时适当调大"},
+                },
+                "required": ["code"],
             },
         },
     },
@@ -607,7 +688,8 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
             model=MODEL, messages=messages, tools=TOOLS, temperature=0
         )
         msg = resp.choices[0].message
-        state["tokens"] += resp.usage.total_tokens if resp.usage else 0
+        usage = resp.usage
+        state["tokens"] += usage.total_tokens if usage else 0
         d = msg.model_dump(exclude_none=True)
         rc = d.pop("reasoning_content", None)
         if rc:
@@ -656,8 +738,6 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
                 "tool_call_id": call.id,
                 "content": str(result),
             })
-            #增加滑动窗口，超过3次工具调用，将之前的记录压缩，落到磁盘上，只保存最近3次的记录
-            
 
         # 整步所有调用都没带来新信息才算"无进展"
         state["no_progress"] = state["no_progress"] + 1 if step_new == 0 else 0
@@ -667,8 +747,14 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
                 "先复述你已确认的事实，再决定下一步；如果信息已足够，请直接作答。"})
             print(f"[step {state['step']}] 注入无进展提示（连续 {state['no_progress']} 步）")
             state["no_progress"] = 0       # 只提示一次，别每步都灌
+        # prompt/completion/reasoning 三列是成本归因的地基：tokens 总量看不出
+        # 钱花在"重发历史"还是"脑内计算"（T08 每步 +25k reasoning 就是这么发现的）
         log(event="step", step=state["step"], ms=round((time.time() - t0) * 1000),
-            chars=ctx_chars(messages), tokens=state["tokens"])
+            chars=ctx_chars(messages), tokens=state["tokens"],
+            prompt=usage.prompt_tokens if usage else None,
+            completion=usage.completion_tokens if usage else None,
+            reasoning=getattr(getattr(usage, "completion_tokens_details", None),
+                              "reasoning_tokens", None))
         save_state(state)                    # 每步落盘，这是能断点续跑的全部秘密
 
     print("[warn] 达到步数上限")

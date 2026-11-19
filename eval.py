@@ -1,5 +1,5 @@
 # eval.py — agent2 的自动评测
-import json, re, sys
+import json, math, re, sys
 from pathlib import Path
 
 from agent import SANDBOX, MODEL
@@ -97,7 +97,7 @@ def oracle_t08_nearest_rank(lats: list[int], q: float) -> int:
 
     """
     sorted_lats = sorted(lats)
-    result=sorted_lats[re.match.ceil(q*len(lats))-1]
+    result = sorted_lats[math.ceil(q * len(lats)) - 1]   # ⌈q×N⌉，1-based；int() 在 q×N 非整除时错一位
     return result
 
 def oracle_t08() -> int:
