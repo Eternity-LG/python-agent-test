@@ -158,7 +158,7 @@ def findstr(path: str, needle: str="", show_lines: bool = False, max_lines: int 
     两次分别烧掉 188k 和 167k tokens）。
     path 指向单个文件时走纯 Python 扫描（子进程的 cwd 不能是文件）。"""
     from agent import _safe
-    
+
     needle = needle or ""          # null / 空值归一
 
     # ---- 归一化：needles 优先；去重保序；超上限截断并明说 ----
@@ -531,7 +531,36 @@ def save_state(state: dict) -> None:
     tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
     os.replace(tmp, RUN_DIR / "state.json")     # 原子替换，避免半截 JSON
 
-#
+# ---------- 新增能力 4：上下文压缩 ----------
+COMPRESS_KEEP = 3          # 最近 K 条 tool 消息保留原文，按"条"数不按步数
+_compress_seq = 0          # 压缩落盘计数器：global 声明的前提是模块级先定义，否则 += 抛 NameError
+
+def compress_old_tools(messages: list, run_dir) -> int:
+    global _compress_seq
+    """把最近 K 条之外的 tool 消息原文落盘，content 换成摘要。返回压缩条数。"""
+    tool_idx = [i for i, m in enumerate(messages) if m["role"] == "tool"]
+    if len(tool_idx) <= COMPRESS_KEEP:
+        return 0
+    old = tool_idx[:-COMPRESS_KEEP]           # 只压老消息，最近 K 条永远不动
+    n = 0
+    for i in old:
+        m = messages[i]
+        if m["content"].startswith("[已压缩]"):
+            continue                          # 幂等：已压过的跳过
+        # 1) 原文先落盘（压缩必须可逆）
+        _compress_seq += 1
+        name = f"toolmsg_{_compress_seq}"
+
+        # 压缩前先落盘，避免被覆盖
+        offload(name, m["content"])
+        # 2) 摘要里的数字从原文第一行抽，不要自己算
+        first_line = m["content"].splitlines()[0][:80]
+        summary = (f"[已压缩] 原文 {len(m['content'])} 字符存于 artifacts/{name}.txt，"
+                   f"read_artifact('{name}', offset=0, limit=200) 取全文。首行：{first_line}")
+        m["content"] = summary
+        n += 1
+    return n
+
 def ctx_chars(messages: list) -> int:
     return sum(len(json.dumps(m, ensure_ascii=False)) for m in messages)
 
@@ -577,11 +606,11 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
         d = msg.model_dump(exclude_none=True)
         rc = d.pop("reasoning_content", None)
         if rc:
+        #log(event="reasoning", step=state["step"], chars=len(rc))
             (RUN_DIR / "artifacts" / f"reasoning_step{state['step']}.txt").write_text(rc, encoding="utf-8")
-#        log(event="reasoning", step=state["step"], chars=len(rc))
         messages.append(d)
 
-#       messages.append(msg.model_dump(exclude_none=True))
+        compress_old_tools(messages, RUN_DIR) 
 
         if not msg.tool_calls:
             print(f"[step {state['step']}] 完成，上下文 {ctx_chars(messages)} 字符，"
@@ -589,7 +618,8 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
             log(event="finish", step=state["step"], chars=ctx_chars(messages), tokens=state["tokens"])
             save_state(state)
             return RUN_DIR,msg.content or ""
-        step_new = 0                       # 本步新信息计数，必须在 while 内、for 外
+        # 本步新信息计数，必须在 while 内、for 外
+        step_new = 0                       
         for call in msg.tool_calls:
             args = json.loads(call.function.arguments or "{}")
             # key 必须是字符串：state 要落成 JSON，tuple 会被 json.dumps 拒绝
@@ -621,6 +651,9 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
                 "tool_call_id": call.id,
                 "content": str(result),
             })
+            #增加滑动窗口，超过3次工具调用，将之前的记录压缩，落到磁盘上，只保存最近3次的记录
+            
+
         # 整步所有调用都没带来新信息才算"无进展"
         state["no_progress"] = state["no_progress"] + 1 if step_new == 0 else 0
         if state["no_progress"] >= 2:
