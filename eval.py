@@ -71,19 +71,20 @@ def oracle_t07_top3() -> list[tuple[str, int]]:
     # 按行数、同数按 rid 升序，取前 3
     return sorted(counts.items(), key=lambda x: (-x[1], x[0]))[:3]
 
-#不懂这个函数的作用
 def _std(needle: str, ignore_case: bool = False):
-    """把现有 oracle 适配成无参 expected_fn，t01-t06 用它，行为一个字不变"""
+    """工厂：把"要参数的 oracle"固化成"无参可调用"，主循环对 7 条任务一视同仁。
+    必须调用它（_std("ERROR")）拿到闭包，传 _std 本身会 TypeError 缺 needle。"""
     return lambda: oracle(needle, ignore_case)
 
 TASKS = [
-
-    {"id": "t01_error_total",   "question": f"统计 batch/ 目录所有 .log 文件中，出现大写 ERROR 的总行数，{_CONTRACT}",   "needle": "ERROR",   "ignore_case": False, "expected_fn": _std("ERROR")},
-    {"id": "t02_lower_error",   "question": f"统计 batch/ 目录所有 .log 文件中，出现小写 error 的总行数，{_CONTRACT}",   "needle": "error",   "ignore_case": False, "expected_fn": _std("error")},
-    {"id": "t03_ci_error",      "question": f"统计 batch/ 目录所有 .log 文件中，不区分大小写出现 error 的总行数，{_CONTRACT}", "needle": "error", "ignore_case": True, "expected_fn": _std("error", True)},  
-    {"id": "t04_warn",          "question": f"统计 batch/ 目录所有 .log 文件中，出现大写 WARN 的总行数，{_CONTRACT}",    "needle": "WARN",    "ignore_case": False, "expected_fn": _std("WARN")}, 
-    {"id": "t05_warning_trap",  "question": f"统计 batch/ 目录所有 .log 文件中，出现大写 WARNING 的总行数，{_CONTRACT}",  "needle": "WARNING", "ignore_case": False, "expected_fn": _std("WARNING")},    
-    {"id": "t06_fatal_zero",    "question": f"统计 batch/ 目录所有 .log 文件中，出现大写 FATAL 的总行数，{_CONTRACT}",   "needle": "FATAL",   "ignore_case": False, "expected_fn": _std("FATAL")},  
+    # 口径（needle/ignore_case）只活在 _std(...) 闭包里一处；
+    # 字段里再存一份就是两个真相源——改了不生效，看着像在起作用。
+    {"id": "t01_error_total",   "question": f"统计 batch/ 目录所有 .log 文件中，出现大写 ERROR 的总行数，{_CONTRACT}",   "expected_fn": _std("ERROR")},
+    {"id": "t02_lower_error",   "question": f"统计 batch/ 目录所有 .log 文件中，出现小写 error 的总行数，{_CONTRACT}",   "expected_fn": _std("error")},
+    {"id": "t03_ci_error",      "question": f"统计 batch/ 目录所有 .log 文件中，不区分大小写出现 error 的总行数，{_CONTRACT}", "expected_fn": _std("error", True)},
+    {"id": "t04_warn",          "question": f"统计 batch/ 目录所有 .log 文件中，出现大写 WARN 的总行数，{_CONTRACT}",    "expected_fn": _std("WARN")},
+    {"id": "t05_warning_trap",  "question": f"统计 batch/ 目录所有 .log 文件中，出现大写 WARNING 的总行数，{_CONTRACT}",  "expected_fn": _std("WARNING")},
+    {"id": "t06_fatal_zero",    "question": f"统计 batch/ 目录所有 .log 文件中，出现大写 FATAL 的总行数，{_CONTRACT}",   "expected_fn": _std("FATAL")},
     {"id": "t07_cross_file",
         "question": ("读 orders/requests.csv（每行一个 URL，request_id 在路径里，形如 /orders/REQ-xxxx）。"
         "扫描 orders/logs/ 下所有 .log，统计仅在 csv 中出现过的那些 request_id 各自出现在多少行；"
@@ -131,20 +132,24 @@ if __name__ == "__main__":
     runs_dir = Path("runs")
     runs_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"{'id':<20} {'model':<18} {'expected':>8} {'got':>6} {'pass':>5}  {'steps':>5} {'calls':>5} {'tokens':>7}")
-    print("-" * 86)
-    for _ in range(repeat):
+    print(f"{'r':<3} {'id':<20} {'model':<18} {'expected':>8} {'got':>6} {'pass':>5}  {'steps':>5} {'calls':>5} {'tokens':>7}")
+    print("-" * 90)
+
+    # gots[t_id] = [每轮的 got]，循环结束算 answer_stable
+    gots: dict[str, list] = {t["id"]: [] for t in selected[:limit]}
+
+    for r in range(1, repeat + 1):
         for task in selected[:limit]:
-        # expected = oracle(task["needle"], task.get("ignore_case", False))
-        #不懂这里为什么这么写
             expected = task["expected_fn"]()
             run_dir, report_md, state = run_task(task)
             passed, got = score(report_md, expected)
-            print(f"{task['id']:<20} {MODEL:<18} {expected:>8} {str(got):>6} {'OK' if passed else 'FAIL':>5}  "
+            gots[task["id"]].append(got)
+            print(f"r{r:<2} {task['id']:<20} {MODEL:<18} {expected:>8} {str(got):>6} {'OK' if passed else 'FAIL':>5}  "
                   f"{state['step']:>5} {sum(state['calls'].values()):>5} {state['tokens']:>7}")
 
             result = {
                 "task": {k: v for k, v in task.items() if k != "expected_fn"},
+                "round": r,
                 "model": MODEL,
                 "expected": expected,
                 "got": got,
@@ -153,6 +158,15 @@ if __name__ == "__main__":
                 "state": state,
                 "report": report_md,
             }
-            (runs_dir / f"eval_{task['id']}.json").write_text(
+            # 文件名带轮次：repeat>1 时各轮并存，否则后一轮覆盖前一轮，repeat 就白跑了
+            suffix = f"_r{r}" if repeat > 1 else ""
+            (runs_dir / f"eval_{task['id']}{suffix}.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
-            )   
+            )
+
+    # ── 答案一致性：repeat 的设计目标，跑完必须直接给结论 ──
+    if repeat > 1:
+        print("-" * 90)
+        for tid, gs in gots.items():
+            stable = len(set(gs)) == 1
+            print(f"{'stable' if stable else 'UNSTABLE':<10} {tid:<20} got: {'/'.join(str(g) for g in gs)}")
