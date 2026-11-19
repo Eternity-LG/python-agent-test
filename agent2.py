@@ -531,35 +531,39 @@ def save_state(state: dict) -> None:
     tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
     os.replace(tmp, RUN_DIR / "state.json")     # 原子替换，避免半截 JSON
 
-# ---------- 新增能力 4：上下文压缩 ----------
-COMPRESS_KEEP = 3          # 最近 K 条 tool 消息保留原文，按"条"数不按步数
-_compress_seq = 0          # 压缩落盘计数器：global 声明的前提是模块级先定义，否则 += 抛 NameError
-
-def compress_old_tools(messages: list, run_dir) -> int:
-    global _compress_seq
-    """把最近 K 条之外的 tool 消息原文落盘，content 换成摘要。返回压缩条数。"""
-    tool_idx = [i for i, m in enumerate(messages) if m["role"] == "tool"]
-    if len(tool_idx) <= COMPRESS_KEEP:
-        return 0
-    old = tool_idx[:-COMPRESS_KEEP]           # 只压老消息，最近 K 条永远不动
-    n = 0
-    for i in old:
-        m = messages[i]
-        if m["content"].startswith("[已压缩]"):
-            continue                          # 幂等：已压过的跳过
-        # 1) 原文先落盘（压缩必须可逆）
-        _compress_seq += 1
-        name = f"toolmsg_{_compress_seq}"
-
-        # 压缩前先落盘，避免被覆盖
-        offload(name, m["content"])
-        # 2) 摘要里的数字从原文第一行抽，不要自己算
-        first_line = m["content"].splitlines()[0][:80]
-        summary = (f"[已压缩] 原文 {len(m['content'])} 字符存于 artifacts/{name}.txt，"
-                   f"read_artifact('{name}', offset=0, limit=200) 取全文。首行：{first_line}")
-        m["content"] = summary
-        n += 1
-    return n
+# ---------- 上下文压缩（已关闭，负结果，详见 BASELINE.md「P2a」） ----------
+# 结论：机制成立（窗口/落盘/幂等/逃生通道全部验证通过），成本不成立——
+# 模型把被压缩的原文用 read_artifact 读回（t07 r1 读回 3 条 → 69k tokens 史上最贵），
+# 压缩把"一次付费"变成"先存后取、取时再付"还加步数。原则：答案载体不可压缩。
+# 保留注释备查；若未来重启，只压"过程性大返回"，保留数字行。
+# COMPRESS_KEEP = 3          # 最近 K 条 tool 消息保留原文，按"条"数不按步数
+# _compress_seq = 0          # 压缩落盘计数器：global 声明的前提是模块级先定义，否则 += 抛 NameError
+#
+# def compress_old_tools(messages: list, run_dir) -> int:
+#     global _compress_seq
+#     """把最近 K 条之外的 tool 消息原文落盘，content 换成摘要。返回压缩条数。"""
+#     tool_idx = [i for i, m in enumerate(messages) if m["role"] == "tool"]
+#     if len(tool_idx) <= COMPRESS_KEEP:
+#         return 0
+#     old = tool_idx[:-COMPRESS_KEEP]           # 只压老消息，最近 K 条永远不动
+#     n = 0
+#     for i in old:
+#         m = messages[i]
+#         if m["content"].startswith("[已压缩]"):
+#             continue                          # 幂等：已压过的跳过
+#         # 1) 原文先落盘（压缩必须可逆）
+#         _compress_seq += 1
+#         name = f"toolmsg_{_compress_seq}"
+#
+#         # 压缩前先落盘，避免被覆盖
+#         offload(name, m["content"])
+#         # 2) 摘要里的数字从原文第一行抽，不要自己算
+#         first_line = m["content"].splitlines()[0][:80]
+#         summary = (f"[已压缩] 原文 {len(m['content'])} 字符存于 artifacts/{name}.txt，"
+#                    f"read_artifact('{name}', offset=0, limit=200) 取全文。首行：{first_line}")
+#         m["content"] = summary
+#         n += 1
+#     return n
 
 def ctx_chars(messages: list) -> int:
     return sum(len(json.dumps(m, ensure_ascii=False)) for m in messages)
@@ -610,7 +614,7 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
             (RUN_DIR / "artifacts" / f"reasoning_step{state['step']}.txt").write_text(rc, encoding="utf-8")
         messages.append(d)
 
-        compress_old_tools(messages, RUN_DIR) 
+        # compress_old_tools(messages, RUN_DIR)   # P2a 已关闭（负结果），见 BASELINE.md
 
         if not msg.tool_calls:
             print(f"[step {state['step']}] 完成，上下文 {ctx_chars(messages)} 字符，"

@@ -6,6 +6,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # 让 import agent2 生效
 import agent2
 
+if not hasattr(agent2, "compress_old_tools"):
+    # P2a 已按负结果关闭（代码在 agent2.py 注释保留，见 BASELINE.md「P2a」）
+    # 本测试随之失效；若重启压缩，先解开 agent2.py 里的注释再跑本文件
+    sys.exit("compress_old_tools 不存在：P2a 已关闭，测试跳过（非失败）。重启压缩后可复跑。")
+
 RUN = Path("runs/_comp_test")
 agent2.RUN_DIR = RUN
 (RUN / "artifacts").mkdir(parents=True, exist_ok=True)
