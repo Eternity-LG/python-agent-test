@@ -101,16 +101,21 @@ check("5.重复调用拦截", "同参数已调用 4 次" in results[0]
       and all(i != 7 for _, i in DISPATCH_LOG), str(results[0][:30]))
 
 # ---------- ⑥ run_python 自身的并发安全（现在就应绿） ----------
-runpy_before = set((agent2.RUN_DIR / "artifacts").glob("runpy_*.py"))
-with __import__("concurrent.futures", fromlist=["ThreadPoolExecutor"]).ThreadPoolExecutor(10) as ex:
+# 每次调用用全新目录：_runpy_seq 每进程归零，目录跨进程持久会同名覆盖、污染断言
+import shutil
+from concurrent.futures import ThreadPoolExecutor
+fresh_dir = agent2.RUN_DIR / f"artifacts_fresh_{int(time.time()*1000)}"
+fresh_dir.mkdir(parents=True, exist_ok=True)
+agent2.RUN_DIR = agent2.RUN_DIR.parent          # run_python 读的是 RUN_DIR，换到全新层
+with ThreadPoolExecutor(10) as ex:
     rs = list(ex.map(lambda k: agent2.run_python(f"print({k} * 2)"), range(10)))
-runpy_after = set((agent2.RUN_DIR / "artifacts").glob("runpy_*.py"))
-new_files = runpy_after - runpy_before
+new_files = sorted(fresh_dir.glob("runpy_*.py"))
 contents = {f.read_text(encoding="utf-8") for f in new_files}
-check("6.run_python 20并发:无重名/无覆盖/结果各自正确",
+check("6.run_python 10并发:无重名/无覆盖/结果各自正确",
       len(new_files) == 10 and len(contents) == 10
-      and all(f"[exit 0]" in r for r in rs),
+      and all(f"[exit 0]\n{k*2}" in r for k, r in enumerate(rs)),
       f"新增 {len(new_files)} 个文件，内容 {len(contents)} 种")
+shutil.rmtree(fresh_dir, ignore_errors=True)
 
 print()
 sys.exit(f"{len(fails)} 条失败: {fails}" if fails else print("全部通过"))
