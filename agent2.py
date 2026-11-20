@@ -677,15 +677,8 @@ def run_calls(tool_calls, state, messages, step):
             jobs.append({"call": call, "args": args})
 
     # ---- Phase B：只有 dispatch2 进线程池 ----
-    # TODO 1：把待执行 job 的 (name, args) 打包提交给 ThreadPoolExecutor
-    #   提示：dispatch2 接两个参数，map 的 items 要传二元组序列；
-    #   线程池对象可以每次新建，也可以模块级建一个复用（想想各自的代价）
-        # names = [j["call"].function.name for j in jobs if "args" in j]
-        # args = [j["args"] for j in jobs if "args" in j]
-        # with ThreadPoolExecutor(max_workers=10) as executor:
-        #     results = list(executor.map(dispatch2, names, args))
     got_map = {}
- 
+
     with ThreadPoolExecutor(10) as ex:
         futs = {i: ex.submit(safe_dispatch, j["call"].function.name, j["args"])
             for i, j in enumerate(jobs) if "args" in j}
@@ -702,8 +695,6 @@ def run_calls(tool_calls, state, messages, step):
             result = offload(f"tool_{state['tool_seq']}", str(result))
             print(f"[step {state['step']}] {job['call'].function.name}"
                     f'({str(job["args"])[:160]}) -> {len(str(result))} 字符')
-            result = f"工具执行失败 {type(e).__name__}: {e}"
-            print(f"[step {state['step']}] {job['call'].function.name} 报错: {e}")        
         fp = fingerprint(result)
         if fp not in state["seen"]:
             state["seen"][fp] = step
@@ -777,7 +768,6 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
                 f"你已经连续 {state['no_progress']} 步没有获得任何新信息，当前做法在原地打转。"
                 "先复述你已确认的事实，再决定下一步；如果信息已足够，请直接作答。"})
             print(f"[step {state['step']}] 注入无进展提示（连续 {state['no_progress']} 步）")
-            print(f"[step {state['step']}] 拦截重复调用 {job['call'].function.name}")
             state["no_progress"] = 0       # 只提示一次，别每步都灌
         # prompt/completion/reasoning 三列是成本归因的地基：tokens 总量看不出
         # 钱花在"重发历史"还是"脑内计算"（T08 每步 +25k reasoning 就是这么发现的）
