@@ -86,14 +86,14 @@ trace 已记录同码墙钟 213s→29.5s 的服务端波动，收益验证难。
 
 ## 阶段 4：成本归因脚本（约 1 小时，小工具穿插做）
 
-- [ ] `tools/cost_breakdown.py`：读任意 run 的 trace.jsonl，打印每步 tokens 增量
+- [x] `tools/cost_breakdown.py`：读任意 run 的 trace.jsonl，打印每步 tokens 增量
       及其构成（重发历史 / 新增内容 / completion（含 reasoning）/ 缓存命中拆分）
-- [ ] 验收①：对 run `1119-194822-0f73`（T08 无 run_python 版，111k）能回答
+- [x] 验收①：对 run `1119-194822-0f73`（T08 无 run_python 版，111k）能回答
       "111k 花在哪几步、reasoning 占多少"——预期看到 completion 主导、reasoning 爆炸
-- [ ] 验收②：对 run `1120-142713-f8c2`（T07 P3 版）能算出"真实账单"——
+- [x] 验收②：对 run `1120-142713-f8c2`（T07 P3 版）能算出"真实账单"——
       预期 cache_hit 占 prompt 大头，按 hit/miss 单价折算后远低于 tokens 标称值
       （旧 run 没有 cache 列，需容忍 None）
-- [ ] 以后每次跑完 eval 顺手跑一遍，形成"先归因再优化"的默认动作
+- [x] 以后每次跑完 eval 顺手跑一遍，形成"先归因再优化"的默认动作
 
 ## 阶段 5：P4 LangGraph 对照（收官，约 4–5 小时）
 
