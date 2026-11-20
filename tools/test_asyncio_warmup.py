@@ -92,12 +92,14 @@ def test4():
           ok, f"{wall:.2f}s, 线程数={len(tids)}, results={results}")
 
 # ---------- ⑤ 语义演示：await 让出后，共享状态会被别的协程改掉（无需实现） ----------
+lock = asyncio.Lock()
 def test5():
     counter = {"v": 0}
     async def bump():
-        v = counter["v"]          # 读
-        await asyncio.sleep(0.05)  # 让出事件循环——另一协程趁虚而入
-        counter["v"] = v + 1      # 写回旧值：丢失更新
+        async with lock:
+            v = counter["v"]          # 读
+            await asyncio.sleep(0.05)  # 让出事件循环——另一协程趁虚而入
+            counter["v"] = v + 1      # 写回旧值：丢失更新
     async def demo():
         await asyncio.gather(bump(), bump())
         return counter["v"]
