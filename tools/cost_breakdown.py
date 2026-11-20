@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # 相对单价（P2b 否决时确认：cache_hit ≈ miss 的 1/10）。
 # TODO: 对照 DeepSeek 定价页核实三个倍率，价格填对，
 # "标称 tokens"与"真实账单"的差值就是本工具最大的产出。
-PRICES = {"hit": 0.1, "miss": 1.0, "completion": 2.0}
+PRICES = {"hit": 0.04, "miss": 2.0, "completion": 8.0}
 
 
 def find_trace(arg: str | None) -> Path:
@@ -112,6 +112,7 @@ def main():
         evs = steps + ([finish] if finish and finish.get("tokens") else [])
         for s in evs:
             dt = s["tokens"] - prev_tokens
+            #读取reasoning_step的文件，计算
             rf = trace.parent / "artifacts" / f"reasoning_step{s['step']}.txt"
             rea_chars = rf.stat().st_size if rf.exists() else None
             rows.append({"step": s["step"], "ms": s.get("ms") or 0, "dtokens": dt,
