@@ -15,11 +15,14 @@ import sys
 import time
 import uuid
 import hashlib, re
+import threading
 from pathlib import Path
 
 from openai import OpenAI
 
 from agent import BASE_URL, MODEL, SANDBOX, TOOLS as BASE_TOOLS, dispatch
+
+from concurrent.futures import ThreadPoolExecutor
 
 MAX_STEPS = 40          # 任务变长了，步数上限必须放宽——这也是上下文会爆的原因
 ARTIFACT_THRESHOLD = 1200   # 工具结果超过这么多字符就落盘，只把摘要塞回 messages
@@ -436,7 +439,7 @@ def _findstr_python(p_root: Path, needle: str, ignore_case: bool = False) -> dic
 _runpy_seq = 0            # 执行过的代码在 artifacts/ 留档，便于审计与复现
 RUN_PY_TIMEOUT = 5        # 默认超时秒数
 RUN_PY_OUTPUT_MAX = 1000  # 输出截断上限；< 1200 落盘阈值，避免触发 offload 双跳
-
+_runpy_lock = threading.Lock()
 def run_python(code: str, timeout: int = RUN_PY_TIMEOUT) -> str:
     """执行一段 Python 代码，返回 stdout+stderr 合并文本；任何失败都回灌文本，不抛异常。
 
@@ -453,14 +456,15 @@ def run_python(code: str, timeout: int = RUN_PY_TIMEOUT) -> str:
     if not str(code).strip():
         return "run_python 需要 code 参数（非空 Python 代码）。四则运算请用 calc，更省"
     import sys as _sys, subprocess
-    _runpy_seq += 1
-    script = None
-    try:                                   # RUN_DIR 未初始化时（单测）降级为 -c 执行
-        (RUN_DIR / "artifacts").mkdir(parents=True, exist_ok=True)
-        script = RUN_DIR / "artifacts" / f"runpy_{_runpy_seq}.py"
-        script.write_text(str(code), encoding="utf-8")
-    except Exception:
+    with _runpy_lock:
+        _runpy_seq += 1
         script = None
+        try:                                   # RUN_DIR 未初始化时（单测）降级为 -c 执行
+            (RUN_DIR / "artifacts").mkdir(parents=True, exist_ok=True)
+            script = RUN_DIR / "artifacts" / f"runpy_{_runpy_seq}.py"
+            script.write_text(str(code), encoding="utf-8")
+        except Exception:
+            script = None
     try:
         timeout = max(1, min(int(timeout or RUN_PY_TIMEOUT), 30))
         if script:
@@ -649,6 +653,65 @@ def save_state(state: dict) -> None:
 
 def ctx_chars(messages: list) -> int:
     return sum(len(json.dumps(m, ensure_ascii=False)) for m in messages)
+def safe_dispatch(name, args):
+    try:
+        return dispatch2(name, args)
+    except Exception as e:
+        return f"工具执行失败 {type(e).__name__}: {e}"
+
+#新增 工具并发调用
+
+def run_calls(tool_calls, state, messages, step):
+    """执行一步的全部 tool_calls，返回 (results, step_new)。
+    三段式：A 串行准备 / B 只并行 dispatch2 / C 主线程按原序收尾。"""
+    # ---- Phase A：串行准备，所有共享状态修改都在这，天然无竞态 ----
+    jobs = []
+
+    for call in tool_calls:
+        args = json.loads(call.function.arguments or "{}")
+        key = call.function.name + "|" + json.dumps(args, sort_keys=True, ensure_ascii=False)
+        state["calls"][key] = state["calls"].get(key, 0) + 1
+        if state["calls"][key] >= 4:
+            jobs.append({"call": call, "preset": "同参数已调用 4 次，结果不会变。请换参数或依据已有信息继续。"})
+        else:
+            jobs.append({"call": call, "args": args})
+
+    # ---- Phase B：只有 dispatch2 进线程池 ----
+    # TODO 1：把待执行 job 的 (name, args) 打包提交给 ThreadPoolExecutor
+    #   提示：dispatch2 接两个参数，map 的 items 要传二元组序列；
+    #   线程池对象可以每次新建，也可以模块级建一个复用（想想各自的代价）
+        # names = [j["call"].function.name for j in jobs if "args" in j]
+        # args = [j["args"] for j in jobs if "args" in j]
+        # with ThreadPoolExecutor(max_workers=10) as executor:
+        #     results = list(executor.map(dispatch2, names, args))
+    got_map = {}
+ 
+    with ThreadPoolExecutor(10) as ex:
+        futs = {i: ex.submit(safe_dispatch, j["call"].function.name, j["args"])
+            for i, j in enumerate(jobs) if "args" in j}
+
+    for i, f in futs.items():
+        got_map[i] = f.result()
+
+    # ---- Phase C：主线程按原序收尾 ----
+    results, step_new = [], 0
+    for i, job in enumerate(jobs):
+        result = job.get("preset") or got_map[i]
+        if job["call"].function.name != "read_artifact" and len(str(result)) > ARTIFACT_THRESHOLD:
+            state["tool_seq"] += 1
+            result = offload(f"tool_{state['tool_seq']}", str(result))
+            print(f"[step {state['step']}] {job['call'].function.name}"
+                    f'({str(job["args"])[:160]}) -> {len(str(result))} 字符')
+            result = f"工具执行失败 {type(e).__name__}: {e}"
+            print(f"[step {state['step']}] {job['call'].function.name} 报错: {e}")        
+        fp = fingerprint(result)
+        if fp not in state["seen"]:
+            state["seen"][fp] = step
+            step_new += 1
+        messages.append({"role": "tool", "tool_call_id": job["call"].id, "content": result})
+        results.append(result)
+        print(f"[step {step}] {job['call'].function.name}(...) -> {len(result)} 字符")
+    return results, step_new
 
 
 # ---------- 主循环 ----------
@@ -679,7 +742,7 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
         print(f"[run] {RUN_DIR.name}")
 
     messages = state["messages"]
-    tool_seq = len([1 for m in messages if m.get("role") == "tool"])
+    state["tool_seq"] = len([1 for m in messages if m.get("role") == "tool"])
 
     while state["step"] < MAX_STEPS:
         state["step"] += 1
@@ -705,40 +768,8 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
             log(event="finish", step=state["step"], chars=ctx_chars(messages), tokens=state["tokens"])
             save_state(state)
             return RUN_DIR,msg.content or ""
-        # 本步新信息计数，必须在 while 内、for 外
-        step_new = 0                       
-        for call in msg.tool_calls:
-            args = json.loads(call.function.arguments or "{}")
-            # key 必须是字符串：state 要落成 JSON，tuple 会被 json.dumps 拒绝
-            key = call.function.name + "|" + json.dumps(args, sort_keys=True, ensure_ascii=False)
-            state["calls"][key] = state["calls"].get(key, 0) + 1
-
-            if state["calls"][key] >= 4:
-                result = "同参数已调用 4 次，结果不会变。请换参数或依据已有信息继续。"
-                print(f"[step {state['step']}] 拦截重复调用 {call.function.name}")
-            else:
-                try:
-                    result = dispatch2(call.function.name, args)
-                    # read_artifact 是逃生通道，绝不能再被落盘，否则会形成
-                    # "读 -> 落盘 -> 再读" 的死循环；它靠 offset/limit 自带分页
-                    if call.function.name != "read_artifact" and len(str(result)) > ARTIFACT_THRESHOLD:
-                        tool_seq += 1
-                        result = offload(f"tool_{tool_seq}", str(result))
-                    print(f"[step {state['step']}] {call.function.name}"
-                          f"({str(args)[:60]}) -> {len(str(result))} 字符")
-                except Exception as e:
-                    result = f"工具执行失败 {type(e).__name__}: {e}"
-                    print(f"[step {state['step']}] {call.function.name} 报错: {e}")
-            fp = fingerprint(result)                   # ← 注意：指纹打在这里，即模型最终看到的内容
-            if fp not in state["seen"]:
-                state["seen"][fp] = state["step"]
-                step_new += 1
-            messages.append({
-                "role": "tool",
-                "tool_call_id": call.id,
-                "content": str(result),
-            })
-
+               
+        results, step_new = run_calls(msg.tool_calls, state, messages, state["step"])
         # 整步所有调用都没带来新信息才算"无进展"
         state["no_progress"] = state["no_progress"] + 1 if step_new == 0 else 0
         if state["no_progress"] >= 2:
@@ -746,6 +777,7 @@ def run(question: str, client, self_test: bool = False, resume: str | None = Non
                 f"你已经连续 {state['no_progress']} 步没有获得任何新信息，当前做法在原地打转。"
                 "先复述你已确认的事实，再决定下一步；如果信息已足够，请直接作答。"})
             print(f"[step {state['step']}] 注入无进展提示（连续 {state['no_progress']} 步）")
+            print(f"[step {state['step']}] 拦截重复调用 {job['call'].function.name}")
             state["no_progress"] = 0       # 只提示一次，别每步都灌
         # prompt/completion/reasoning 三列是成本归因的地基：tokens 总量看不出
         # 钱花在"重发历史"还是"脑内计算"（T08 每步 +25k reasoning 就是这么发现的）
