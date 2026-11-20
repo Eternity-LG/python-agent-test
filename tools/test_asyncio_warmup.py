@@ -35,11 +35,13 @@ SYNC_LOG = []   # (thread_id, i)
 # ---------- ① 协程心智模型：调用不执行，await 才执行 ----------
 def test1():
     coro = warm.fake_llm("hi", 0.01)
+    # 调用返回协程对象，await 才执行
     is_coro = asyncio.iscoroutine(coro)
     result = None
     if is_coro:
         async def driver():
             return await coro
+            # 调用返回协程对象，await 才执行
         result = asyncio.run(driver())
     check("1.协程心智模型(调用返回协程对象,await 才产出结果)",
           is_coro and result == "hi",

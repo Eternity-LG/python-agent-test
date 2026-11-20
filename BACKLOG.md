@@ -102,10 +102,10 @@ trace 已记录同码墙钟 213s→29.5s 的服务端波动，收益验证难。
 LangGraph 是 async-first（ainvoke / astream，文档示例几乎全 async），而现有代码全同步。
 只学三个点，别展开：
 
-- [ ] `async def` / `await` 心智模型：协程是"可暂停的函数"，不是线程；
+- [x] `async def` / `await` 心智模型：协程是"可暂停的函数"，不是线程；
       单线程内切换，没有锁竞争但有一处 await 让出后状态被改的问题
-- [ ] `asyncio.gather` 并发跑多个协程——对应 P3 的"一次响应多个 tool_call"
-- [ ] 同步函数进 async 世界：`asyncio.to_thread` 包 `findstr`——迁移时立刻会撞上
+- [x] `asyncio.gather` 并发跑多个协程——对应 P3 的"一次响应多个 tool_call"
+- [x] 同步函数进 async 世界：`asyncio.to_thread` 包 `findstr`——迁移时立刻会撞上
 
 **不学的**：uvloop、asyncio 原语（Lock/Queue/Semaphore）、异步生成器细节——
 用到了再回来看。reducer / StateGraph / add_messages **不是前置知识**，
